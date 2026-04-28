@@ -117,9 +117,7 @@ export function scoreFastPath(
 
   if (
     score >= 7 ||
-    flags.some(
-      (f) => f.type === 'name_calling' || f.type === 'contempt_phrase',
-    )
+    flags.some((f) => f.type === 'name_calling' || f.type === 'contempt_phrase')
   ) {
     tier = 'tier_3';
   } else if (score >= 4) {

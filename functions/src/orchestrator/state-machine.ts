@@ -15,9 +15,6 @@ export interface StateTransition {
   reason: string;
 }
 
-export function nextState(
-  _from: SessionState,
-  _event: string,
-): SessionState {
+export function nextState(_from: SessionState, _event: string): SessionState {
   throw new Error('not implemented: orchestrator/state-machine.nextState');
 }

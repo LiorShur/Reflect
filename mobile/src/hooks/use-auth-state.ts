@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import auth, {
-  FirebaseAuthTypes,
-} from '@react-native-firebase/auth';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 
 export type AuthState =
   | { ready: false }

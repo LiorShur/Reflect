@@ -142,24 +142,16 @@ describe('partner-boundary writes', () => {
   });
 
   it('neither partner can write meta directly', async () => {
-    await assertFails(
-      refFor(A, `sessions/${SID}/meta/state`).set('WRAP_UP'),
-    );
-    await assertFails(
-      refFor(B, `sessions/${SID}/meta/partnerA`).set(B),
-    );
+    await assertFails(refFor(A, `sessions/${SID}/meta/state`).set('WRAP_UP'));
+    await assertFails(refFor(B, `sessions/${SID}/meta/partnerA`).set(B));
   });
 
   it('translation.approved writable only by speaker', async () => {
     await assertSucceeds(
-      refFor(A, `sessions/${SID}/current_turn/translation/approved`).set(
-        true,
-      ),
+      refFor(A, `sessions/${SID}/current_turn/translation/approved`).set(true),
     );
     await assertFails(
-      refFor(B, `sessions/${SID}/current_turn/translation/approved`).set(
-        true,
-      ),
+      refFor(B, `sessions/${SID}/current_turn/translation/approved`).set(true),
     );
   });
 

@@ -9,14 +9,11 @@ describe('scoreFastPath — self-reference exemption (docs/10 test cases)', () =
     ['I never know what to say in these moments', false],
   ];
 
-  test.each(cases)(
-    '"%s" should flag = %s',
-    (input, shouldFlag) => {
-      const result = scoreFastPath(input);
-      const flagged = result.tier !== 'clean';
-      expect(flagged).toBe(shouldFlag);
-    },
-  );
+  test.each(cases)('"%s" should flag = %s', (input, shouldFlag) => {
+    const result = scoreFastPath(input);
+    const flagged = result.tier !== 'clean';
+    expect(flagged).toBe(shouldFlag);
+  });
 });
 
 describe('scoreFastPath — tier assignment', () => {
