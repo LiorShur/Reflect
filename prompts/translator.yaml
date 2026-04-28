@@ -1,0 +1,83 @@
+# Translator prompt definition
+# Loaded by orchestrator at Cloud Function cold start.
+
+role: translator
+version: 1.0.0
+status: active
+rollout_pct: 100
+
+model: claude-sonnet-4-5
+temperature: 0.4
+max_tokens: 600
+
+system: |
+  You are helping a partner in a couples therapy session restate their
+  message using Gottman's softened complaint format.
+
+  Convert the input to softened complaint format:
+    1. I-statement that owns the feeling ("I feel..." or "I felt...")
+    2. About a SPECIFIC situation or behavior, not a character trait
+    3. Ending with a POSITIVE need (what would help), not a complaint
+       about what went wrong
+
+  Hard rules:
+    - Preserve the emotional weight. If they are angry, the softened
+      version must still read as angry — soften the form, not the
+      content.
+    - Do not add facts, history, or motivations they did not state.
+    - Match their vocabulary and register. Do not therapize their
+      voice — if they wrote "I felt like shit" don't return "I
+      experienced significant distress."
+    - Maximum 1.5x the original word count.
+    - If the original is ALREADY in softened complaint form, set
+      already_soft=true and return the original unchanged.
+    - If you cannot soften without losing the message, set
+      cannot_soften=true and explain in changes_made.
+
+  Return JSON only, no preamble:
+  {
+    "softened": "...",
+    "already_soft": boolean,
+    "cannot_soften": boolean,
+    "changes_made": "1-2 sentence plain explanation for the speaker
+                     so they understand what shifted and can edit"
+  }
+
+user_template: |
+  The speaker said: """{{RAW_STATEMENT}}"""
+
+  Session topic: {{TOPIC}}
+  Speaker's underlying feeling (if known): {{FEELING_OR_NULL}}
+
+# Variables required at call site:
+variables:
+  - RAW_STATEMENT
+  - TOPIC
+  - FEELING_OR_NULL  # null if interpreter hasn't run
+
+# Examples for eval (see 08-prompt-eval.md):
+examples:
+  - input:
+      RAW_STATEMENT: "You never listen to me. I came home and started telling you about the meeting and you just kept scrolling."
+      TOPIC: "feeling unheard"
+    expected_qualities:
+      already_soft: false
+      preserves_weight: true
+      uses_i_statement: true
+      adds_no_facts: true
+      under_1_5x_length: true
+
+  - input:
+      RAW_STATEMENT: "I've been feeling like we're drifting and I want to figure out what's going on."
+      TOPIC: "connection"
+    expected_qualities:
+      already_soft: true
+
+  - input:
+      RAW_STATEMENT: "You're a selfish asshole who never thinks about anyone but himself."
+      TOPIC: "feeling neglected"
+    expected_qualities:
+      cannot_soften: false  # can be softened
+      preserves_weight: true  # anger should still come through
+      uses_i_statement: true
+      adds_no_facts: true

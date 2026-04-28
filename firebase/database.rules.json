@@ -1,0 +1,142 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false,
+        "profile": {
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "settings": {
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "screening": {
+          ".write": false
+        },
+        "baseline": {
+          ".write": false
+        }
+      }
+    },
+
+    "sessions": {
+      ".indexOn": ["meta/partnerA", "meta/partnerB"],
+
+      "$sid": {
+        ".read": "auth != null && (data.child('meta/partnerA').val() === auth.uid || data.child('meta/partnerB').val() === auth.uid)",
+
+        "meta": {
+          ".write": false
+        },
+
+        "checkins": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $sid + '/meta/state').val() === 'CHECK_IN' && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)"
+          }
+        },
+
+        "current_turn": {
+          "speaker_uid": {
+            ".write": false
+          },
+          "listener_uid": {
+            ".write": false
+          },
+
+          "speaker_draft": {
+            ".read": "auth != null && auth.uid === data.parent().child('speaker_uid').val()",
+            ".write": "auth != null && auth.uid === data.parent().child('speaker_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+          },
+
+          "translation": {
+            "softened": {
+              ".write": false
+            },
+            "changes_made": {
+              ".write": false
+            },
+            "already_soft": {
+              ".write": false
+            },
+            "cannot_soften": {
+              ".write": false
+            },
+            "prompt_version": {
+              ".write": false
+            },
+            "approved": {
+              ".write": "auth != null && auth.uid === data.parent().parent().child('speaker_uid').val()"
+            }
+          },
+
+          "delivered": {
+            ".write": false
+          },
+
+          "listener_draft": {
+            ".read": "auth != null && auth.uid === data.parent().child('listener_uid').val()",
+            ".write": "auth != null && auth.uid === data.parent().child('listener_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+          },
+
+          "mirror": {
+            ".write": "auth != null && auth.uid === data.parent().child('listener_uid').val() && !data.exists() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+          },
+
+          "speaker_confirmation": {
+            ".write": "auth != null && auth.uid === data.parent().child('speaker_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+          }
+        },
+
+        "history": {
+          "$turnId": {
+            ".write": false
+          }
+        },
+
+        "flags": {
+          "$flagId": {
+            ".write": false
+          }
+        },
+
+        "presence": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+
+        "summary": {
+          "partner_a_summary": {
+            ".write": false
+          },
+          "partner_b_summary": {
+            ".write": false
+          },
+          "partner_a_confirmed": {
+            ".write": "auth != null && auth.uid === root.child('sessions/' + $sid + '/meta/partnerA').val()"
+          },
+          "partner_b_confirmed": {
+            ".write": "auth != null && auth.uid === root.child('sessions/' + $sid + '/meta/partnerB').val()"
+          },
+          "next_action": {
+            ".write": "auth != null && (auth.uid === root.child('sessions/' + $sid + '/meta/partnerA').val() || auth.uid === root.child('sessions/' + $sid + '/meta/partnerB').val())"
+          }
+        }
+      }
+    },
+
+    "appreciation_feed": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".indexOn": ["created_at"],
+        "$entryId": {
+          ".write": "auth != null && (auth.uid === $uid || auth.uid === newData.child('from_uid').val())",
+          "reaction": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    }
+  }
+}
