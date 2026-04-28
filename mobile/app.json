@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Reflect",
+    "slug": "reflect",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.reflect.placeholder"
+    },
+    "android": {
+      "package": "app.reflect.placeholder"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": []
+  }
+}
