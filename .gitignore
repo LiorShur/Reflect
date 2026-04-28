@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Builds
+dist/
+build/
+lib/
+*.tsbuildinfo
+.expo/
+.expo-shared/
+web-build/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+serviceAccount*.json
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Test / coverage
+coverage/
+
+# Native
+ios/Pods/
+android/.gradle/
+android/build/
+android/app/build/
