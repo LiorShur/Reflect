@@ -6,9 +6,6 @@
     "strictNullChecks": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "esModuleInterop": true,
-    "jsx": "react-native",
-    "moduleResolution": "node",
     "resolveJsonModule": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
