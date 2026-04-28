@@ -15,6 +15,7 @@ export default function HomeScreen() {
 
 function authStatusLabel(auth: ReturnType<typeof useAuthState>): string {
   if (!auth.ready) return 'checking sign-in…';
+  if ('error' in auth) return 'firebase not configured';
   if (auth.user) return `signed in as ${auth.user.uid}`;
   return 'not signed in';
 }
