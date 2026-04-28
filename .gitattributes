@@ -1,0 +1,9 @@
+# Normalize line endings to LF across the repo so Windows checkouts
+# don't introduce CRLF that prettier rejects. Binary files are detected
+# automatically by `* text=auto`.
+* text=auto eol=lf
+
+# Files that genuinely need CRLF (none in this repo today, listed for
+# documentation):
+# *.bat   text eol=crlf
+# *.cmd   text eol=crlf
