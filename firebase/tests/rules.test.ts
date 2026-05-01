@@ -190,6 +190,12 @@ describe('user-scoped paths', () => {
     await assertFails(refFor(A, `users/${A}/profile/paired_at`).set(123));
   });
 
+  it('active_session_id is server-only (orchestrator-written by createSession)', async () => {
+    await assertFails(
+      refFor(A, `users/${A}/profile/active_session_id`).set('abc'),
+    );
+  });
+
   it('screening is server-only (orchestrator computes tier)', async () => {
     await assertFails(refFor(A, `users/${A}/screening`).set({ tier: 'low' }));
   });

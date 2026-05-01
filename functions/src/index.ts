@@ -14,3 +14,6 @@ registerTriggers();
 export { createPairCode } from './pairing/create-pair-code';
 export { redeemPairCode } from './pairing/redeem-pair-code';
 export { submitScreening } from './screening/submit-screening';
+export { createSession } from './sessions/create-session';
+export { proposeTopic, acceptTopic, reframeTopic } from './sessions/topic';
+export { onCheckinWritten } from './sessions/checkins-trigger';
