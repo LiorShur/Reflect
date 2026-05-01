@@ -1,10 +1,18 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initializeApp,
   getApps,
   FirebaseApp,
   FirebaseOptions,
 } from 'firebase/app';
-import { Auth, getAuth } from 'firebase/auth';
+import {
+  Auth,
+  getAuth,
+  initializeAuth,
+  // @ts-expect-error — getReactNativePersistence is exported at runtime
+  // but missing from firebase 10.x public type definitions.
+  getReactNativePersistence,
+} from 'firebase/auth';
 import { Database, getDatabase } from 'firebase/database';
 
 // Public config — safe to ship in the bundle. Real values come from
@@ -26,6 +34,23 @@ export interface FirebaseHandle {
 // the placeholder screen render before milestone 2 wires up real auth.
 export function tryInitFirebase(): FirebaseHandle | null {
   if (!config.apiKey || !config.projectId) return null;
+
   const app = getApps()[0] ?? initializeApp(config);
-  return { app, auth: getAuth(app), database: getDatabase(app) };
+
+  // On React Native, the auth component must be registered explicitly
+  // with AsyncStorage persistence — getAuth() alone will throw
+  // "Component auth has not been registered yet" before initializeAuth
+  // has run. After the first call, initializeAuth throws if called
+  // again, so we fall back to getAuth() on subsequent inits (HMR,
+  // remounts).
+  let auth: Auth;
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    auth = getAuth(app);
+  }
+
+  return { app, auth, database: getDatabase(app) };
 }
