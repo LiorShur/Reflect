@@ -5,7 +5,18 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": false,
         "profile": {
-          ".write": "auth != null && auth.uid === $uid"
+          "display_name": {
+            ".write": "auth != null && auth.uid === $uid"
+          },
+          "created_at": {
+            ".write": "auth != null && auth.uid === $uid"
+          },
+          "partner_uid": {
+            ".write": false
+          },
+          "paired_at": {
+            ".write": false
+          }
         },
         "settings": {
           ".write": "auth != null && auth.uid === $uid"
@@ -124,6 +135,11 @@
           }
         }
       }
+    },
+
+    "pair_codes": {
+      ".read": false,
+      ".write": false
     },
 
     "appreciation_feed": {

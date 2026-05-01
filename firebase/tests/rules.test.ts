@@ -170,16 +170,26 @@ describe('partner-boundary writes', () => {
 });
 
 describe('user-scoped paths', () => {
-  it('user can write own profile', async () => {
+  it('user can write own display_name', async () => {
     await assertSucceeds(
-      refFor(A, `users/${A}/profile`).set({ display_name: 'A' }),
+      refFor(A, `users/${A}/profile/display_name`).set('Alice'),
     );
   });
 
-  it('user cannot write another user profile', async () => {
+  it('user cannot write another user display_name', async () => {
     await assertFails(
-      refFor(B, `users/${A}/profile`).set({ display_name: 'B' }),
+      refFor(B, `users/${A}/profile/display_name`).set('Bob'),
     );
+  });
+
+  it('partner_uid is server-only (orchestrator-written via pairing function)', async () => {
+    // M2 safety rail: a malicious client cannot self-pair by writing
+    // partner_uid directly.
+    await assertFails(refFor(A, `users/${A}/profile/partner_uid`).set(B));
+  });
+
+  it('paired_at is server-only', async () => {
+    await assertFails(refFor(A, `users/${A}/profile/paired_at`).set(123));
   });
 
   it('screening is server-only (orchestrator computes tier)', async () => {
@@ -192,6 +202,37 @@ describe('user-scoped paths', () => {
         avg_message_length: 100,
         sample_count: 10,
       }),
+    );
+  });
+});
+
+describe('pair_codes path (server-only)', () => {
+  it('authenticated user cannot read pair_codes', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.database().ref('pair_codes/123456').set({
+        creator_uid: A,
+        created_at: 1,
+        expires_at: 2,
+      });
+    });
+    await assertFails(refFor(A, 'pair_codes/123456').once('value'));
+    await assertFails(refFor(A, 'pair_codes').once('value'));
+  });
+
+  it('authenticated user cannot write pair_codes', async () => {
+    await assertFails(
+      refFor(A, 'pair_codes/999999').set({
+        creator_uid: A,
+        created_at: 1,
+        expires_at: 2,
+      }),
+    );
+  });
+
+  it('unauthenticated user cannot read or write pair_codes', async () => {
+    await assertFails(refFor(null, 'pair_codes/123456').once('value'));
+    await assertFails(
+      refFor(null, 'pair_codes/999999').set({ creator_uid: A }),
     );
   });
 });
