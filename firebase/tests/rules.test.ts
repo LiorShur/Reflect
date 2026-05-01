@@ -177,9 +177,7 @@ describe('user-scoped paths', () => {
   });
 
   it('user cannot write another user display_name', async () => {
-    await assertFails(
-      refFor(B, `users/${A}/profile/display_name`).set('Bob'),
-    );
+    await assertFails(refFor(B, `users/${A}/profile/display_name`).set('Bob'));
   });
 
   it('partner_uid is server-only (orchestrator-written via pairing function)', async () => {
