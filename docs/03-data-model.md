@@ -11,7 +11,8 @@ users/
     profile/                       # readable by self only
       created_at: timestamp
       display_name: string
-      partner_uid: string | null   # set after pairing
+      partner_uid: string | null   # set after pairing (orchestrator-written)
+      paired_at: timestamp         # set after pairing (orchestrator-written)
     screening/                     # readable by self only
       completed_at: timestamp
       tier: "low" | "moderate" | "high"
@@ -23,6 +24,12 @@ users/
       avg_message_length: number
       avg_exclamations: number
       sample_count: number
+
+pair_codes/                        # server-only — never client readable/writable
+  {code}/                          # 6-digit numeric, server-generated
+    creator_uid: <uid>
+    created_at: timestamp
+    expires_at: timestamp          # 10-min TTL
 
 sessions/
   {sessionId}/
@@ -125,7 +132,11 @@ Any of these being violated is a P0 bug:
 
 | Path | Readable by | Writable by |
 |---|---|---|
-| `users/{uid}/profile` | self | self |
+| `users/{uid}/profile/display_name` | self | self |
+| `users/{uid}/profile/created_at` | self | self |
+| `users/{uid}/profile/partner_uid` | self | orchestrator (after pairing) |
+| `users/{uid}/profile/paired_at` | self | orchestrator (after pairing) |
+| `pair_codes/{code}` | none (server-only) | none (server-only) |
 | `users/{uid}/screening` | self | orchestrator (after screening) |
 | `users/{uid}/baseline` | self | orchestrator |
 | `sessions/{sid}/meta` | both partners | orchestrator |
@@ -252,6 +263,36 @@ sequence:
    - After both partners acknowledge, sets `meta/state: "IN_TURN"`
 
 This is too much logic for rules; it lives in `functions/orchestrator/`.
+
+## Pairing flow
+
+Pair codes are short-lived, single-use credentials minted by an
+authenticated user (creator) and redeemed out-of-band by the partner.
+Both endpoints are HTTPS callable Cloud Functions; clients never read
+or write `/pair_codes` directly.
+
+```
+1. createPairCode(auth=A) →
+     - precondition: A.profile.partner_uid does not exist
+     - generates a 6-digit code (retry on collision)
+     - writes pair_codes/{code} = { creator_uid: A, expires_at: now+10m }
+     - returns { code }
+
+2. redeemPairCode({ code }, auth=B) →
+     - precondition: B.profile.partner_uid does not exist
+     - precondition: code exists, not expired, creator_uid !== B
+     - transaction: deletes pair_codes/{code} (claim)
+     - multi-path update:
+         users/A/profile/partner_uid = B
+         users/A/profile/paired_at  = now
+         users/B/profile/partner_uid = A
+         users/B/profile/paired_at  = now
+     - returns { partner_uid: A }
+```
+
+Codes are 10-minute TTL so an unused code can't sit indefinitely. The
+TTL is enforced inside `redeemPairCode`; expired entries are also
+swept by a scheduled cleanup function (TBD in a follow-up).
 
 ## Indexes
 

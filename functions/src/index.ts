@@ -1,10 +1,15 @@
-// Cloud Functions entry point. Concrete handlers are registered as
-// milestones land; for now this file just re-exports the orchestrator
-// stub so `firebase deploy --only functions` has something to bind.
+// Cloud Functions entry point. Initializes the Admin SDK once per cold
+// start and exposes the deploy targets.
+
+import { getApps, initializeApp } from 'firebase-admin/app';
 
 import { registerTriggers } from './orchestrator/triggers';
 
+if (getApps().length === 0) {
+  initializeApp();
+}
+
 registerTriggers();
 
-export { moderate } from './moderator/fast-path';
-export { scoreFastPath } from './moderator/score';
+export { createPairCode } from './pairing/create-pair-code';
+export { redeemPairCode } from './pairing/redeem-pair-code';
