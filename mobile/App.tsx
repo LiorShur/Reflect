@@ -8,10 +8,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import HomeScreen from './src/screens/home-screen';
+import PairingScreen from './src/screens/pairing-screen';
 import SettingsScreen from './src/screens/settings-screen';
+import { useAutoSignIn } from './src/hooks/use-auto-sign-in';
 
 export type RootStackParamList = {
   Home: undefined;
+  Pairing: undefined;
   Settings: undefined;
 };
 
@@ -34,6 +37,7 @@ function HeaderSettingsLink() {
 }
 
 export default function App() {
+  useAutoSignIn();
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -42,6 +46,11 @@ export default function App() {
             name="Home"
             component={HomeScreen}
             options={{ headerRight: () => <HeaderSettingsLink /> }}
+          />
+          <Stack.Screen
+            name="Pairing"
+            component={PairingScreen}
+            options={{ headerTitle: 'Pair' }}
           />
           <Stack.Screen
             name="Settings"
