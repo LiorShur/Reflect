@@ -70,10 +70,22 @@ export const redeemPairCode = onCall<
     });
 
   if (!claim.committed || claimedCreator === null) {
+    // Diagnostic: same path, same SDK, but via .once('value') instead
+    // of inside a transaction. If this differs from `current` inside
+    // the transaction handler, that points at a transaction-specific
+    // read issue. If they agree, the data is genuinely not where we
+    // think it is.
+    const directRead = await db.ref(`pair_codes/${code}`).once('value');
+    const allCodes = await db.ref('pair_codes').once('value');
     logger.info('redeemPairCode aborted', {
       reason: abortReason ?? 'unknown',
       committed: claim.committed,
       uid_prefix: uid.slice(0, 8),
+      code, // exact value the function looked up
+      db_url: db.app.options.databaseURL ?? '(unset)',
+      direct_exists: directRead.exists(),
+      direct_val: directRead.val(),
+      all_keys: allCodes.exists() ? Object.keys(allCodes.val() as object) : [],
     });
     if (abortReason === 'missing') {
       throw new HttpsError(
