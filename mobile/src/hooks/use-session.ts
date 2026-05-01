@@ -47,7 +47,16 @@ export function useSession(sessionId: string | null): SessionStateView {
       const val = snap.val() as SessionMeta | null;
       setState({ ready: true, meta: val });
     };
-    onValue(r, handler);
+    // Permission errors fire here when the session's partner uids
+    // don't match auth.uid (e.g., the meta was deleted server-side
+    // and the rule can no longer evaluate). Without this callback,
+    // onValue swallows the error and state stays at { ready: false },
+    // showing a permanent loader. Treat any read failure as
+    // "session is gone" so the UI can route home.
+    const errorHandler = () => {
+      setState({ ready: true, meta: null });
+    };
+    onValue(r, handler, errorHandler);
     return () => off(r, 'value', handler);
   }, [sessionId]);
 

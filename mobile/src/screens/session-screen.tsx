@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,7 +37,6 @@ export default function SessionScreen() {
   const auth = useAuthState();
   const uid = currentUid(auth);
   const session = useSession(sessionId);
-  const navigation = useNavigation<Nav>();
 
   if (!session.ready) {
     return (
@@ -48,17 +47,7 @@ export default function SessionScreen() {
   }
 
   if (session.meta === null) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.paragraph}>Session not found.</Text>
-        <Pressable
-          style={styles.primaryButton}
-          onPress={() => navigation.popToTop()}
-        >
-          <Text style={styles.primaryLabel}>Back to home</Text>
-        </Pressable>
-      </View>
-    );
+    return <StaleSessionView sessionId={sessionId} />;
   }
 
   if (uid === null) {
@@ -118,6 +107,45 @@ export default function SessionScreen() {
         />
       );
   }
+}
+
+// Session deleted server-side or pointer is stale. Auto-clears the
+// active_session_id pointers via clearStaleSession and routes home so
+// the user doesn't loop "Resume → not found → Back → Resume".
+function StaleSessionView({ sessionId }: { sessionId: string }) {
+  const navigation = useNavigation<Nav>();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const fb = tryInitFirebase();
+        if (!fb) return;
+        const fn = httpsCallable<{ session_id: string }, { ok: true }>(
+          getFunctions(fb.app),
+          'clearStaleSession',
+        );
+        await fn({ session_id: sessionId });
+      } catch {
+        // Best-effort cleanup; if the callable refuses (e.g., session
+        // is still active) just let the user back out manually.
+      } finally {
+        if (!cancelled) navigation.popToTop();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, navigation]);
+
+  return (
+    <View style={styles.center}>
+      <ActivityIndicator />
+      <Text style={[styles.paragraph, { marginTop: 16 }]}>
+        Session no longer available. Returning home…
+      </Text>
+    </View>
+  );
 }
 
 // CHECK_IN
