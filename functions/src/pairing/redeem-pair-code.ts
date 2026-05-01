@@ -1,5 +1,4 @@
 import { getDatabase } from 'firebase-admin/database';
-import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { isExpired, isValidCodeFormat, wouldSelfPair } from './code-utils';
@@ -18,8 +17,6 @@ interface PairCodeRecord {
   expires_at: number;
 }
 
-type AbortReason = 'missing' | 'expired' | 'self_pair';
-
 export const redeemPairCode = onCall<
   RedeemPairCodeRequest,
   Promise<RedeemPairCodeResponse>
@@ -35,99 +32,74 @@ export const redeemPairCode = onCall<
   }
 
   const db = getDatabase();
+  const now = Date.now();
 
   const myPartnerSnap = await db.ref(`users/${uid}/profile/partner_uid`).get();
   if (myPartnerSnap.exists()) {
     throw new HttpsError('failed-precondition', 'You are already paired.');
   }
 
-  // Atomically claim the code: the transaction sets the node to null
-  // (which deletes it) iff the record is present, unexpired, and not
-  // self-pairing. Concurrent redeemers race here; only one wins.
-  // The closure captures the abort reason so we can return a specific
-  // error to the client (and log it) instead of a generic "invalid".
-  let claimedCreator: string | null = null;
-  let abortReason: AbortReason | null = null;
-  const now = Date.now();
-  const claim = await db
-    .ref(`pair_codes/${code}`)
-    .transaction((current: PairCodeRecord | null) => {
-      if (current === null) {
-        abortReason = 'missing';
-        return;
-      }
-      if (isExpired(current.expires_at, now)) {
-        abortReason = 'expired';
-        return;
-      }
-      if (wouldSelfPair(current.creator_uid, uid)) {
-        abortReason = 'self_pair';
-        return;
-      }
-      claimedCreator = current.creator_uid;
-      abortReason = null;
-      return null; // delete (claim)
-    });
-
-  if (!claim.committed || claimedCreator === null) {
-    // Diagnostic: same path, same SDK, but via .once('value') instead
-    // of inside a transaction. If this differs from `current` inside
-    // the transaction handler, that points at a transaction-specific
-    // read issue. If they agree, the data is genuinely not where we
-    // think it is.
-    const directRead = await db.ref(`pair_codes/${code}`).once('value');
-    const allCodes = await db.ref('pair_codes').once('value');
-    logger.info('redeemPairCode aborted', {
-      reason: abortReason ?? 'unknown',
-      committed: claim.committed,
-      uid_prefix: uid.slice(0, 8),
-      code, // exact value the function looked up
-      db_url: db.app.options.databaseURL ?? '(unset)',
-      direct_exists: directRead.exists(),
-      direct_val: directRead.val(),
-      all_keys: allCodes.exists() ? Object.keys(allCodes.val() as object) : [],
-    });
-    if (abortReason === 'missing') {
-      throw new HttpsError(
-        'not-found',
-        'No active code with that number. Ask your partner to generate a new one.',
-      );
-    }
-    if (abortReason === 'expired') {
-      throw new HttpsError(
-        'deadline-exceeded',
-        'That code has expired. Ask your partner to generate a new one.',
-      );
-    }
-    if (abortReason === 'self_pair') {
-      throw new HttpsError(
-        'failed-precondition',
-        "That's your own code. Enter your partner's code instead.",
-      );
-    }
-    throw new HttpsError('not-found', 'That code could not be redeemed.');
+  // Definitive server read. We previously used .transaction() here for
+  // race-safety, but admin SDK's transaction handler is invoked with the
+  // local cache value first (null on cold instances) and our abort-on-
+  // null logic returned `undefined`, terminating the transaction before
+  // the server view was consulted. Documented behavior:
+  // https://firebase.google.com/docs/database/admin/save-data#section-transactions
+  const codeSnap = await db.ref(`pair_codes/${code}`).once('value');
+  if (!codeSnap.exists()) {
+    throw new HttpsError(
+      'not-found',
+      'No active code with that number. Ask your partner to generate a new one.',
+    );
+  }
+  const codeData = codeSnap.val() as PairCodeRecord;
+  if (isExpired(codeData.expires_at, now)) {
+    throw new HttpsError(
+      'deadline-exceeded',
+      'That code has expired. Ask your partner to generate a new one.',
+    );
+  }
+  if (wouldSelfPair(codeData.creator_uid, uid)) {
+    throw new HttpsError(
+      'failed-precondition',
+      "That's your own code. Enter your partner's code instead.",
+    );
   }
 
-  // Defensive: creator might have been paired by another flow between
-  // code creation and redemption. Refuse and surface the error rather
-  // than silently overwriting their pair binding.
-  const creatorPartnerSnap = await db
-    .ref(`users/${claimedCreator}/profile/partner_uid`)
-    .get();
-  if (creatorPartnerSnap.exists()) {
+  const claimedCreator = codeData.creator_uid;
+
+  // Race-safe binding: transaction on the creator's partner_uid.
+  // Concurrent redeemers race here — only the first one wins because
+  // any subsequent transaction sees a non-null `current` and aborts.
+  // The cache-quirk above doesn't bite us here: on the first call
+  // current is null, we return uid (bind), SDK attempts write; if the
+  // server is also null, the write succeeds. If another redeemer beat
+  // us, the server has their uid, the write conflicts, and the retry
+  // handler sees the real value and correctly aborts.
+  const creatorPartnerRef = db.ref(
+    `users/${claimedCreator}/profile/partner_uid`,
+  );
+  const bindResult = await creatorPartnerRef.transaction(
+    (current: string | null) => {
+      if (current !== null) return; // already paired — abort
+      return uid;
+    },
+  );
+
+  if (!bindResult.committed) {
     throw new HttpsError(
       'failed-precondition',
       'The other user is already paired.',
     );
   }
 
-  // Single multi-path update so the binding is atomic across both
-  // users — readers see either both partner_uids or neither.
+  // Bind succeeded. Set the rest of the binding plus delete the code,
+  // atomically across paths so readers see a consistent state.
   await db.ref().update({
     [`users/${uid}/profile/partner_uid`]: claimedCreator,
     [`users/${uid}/profile/paired_at`]: now,
-    [`users/${claimedCreator}/profile/partner_uid`]: uid,
     [`users/${claimedCreator}/profile/paired_at`]: now,
+    [`pair_codes/${code}`]: null,
   });
 
   return { partner_uid: claimedCreator };
