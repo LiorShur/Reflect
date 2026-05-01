@@ -6,7 +6,7 @@ node_modules/
 # Builds
 dist/
 build/
-lib/
+functions/lib/
 *.tsbuildinfo
 .expo/
 .expo-shared/
