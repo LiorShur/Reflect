@@ -142,6 +142,16 @@
       ".write": false
     },
 
+    "meta": {
+      ".read": false,
+      ".write": false
+    },
+
+    "telemetry": {
+      ".read": false,
+      ".write": false
+    },
+
     "appreciation_feed": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",

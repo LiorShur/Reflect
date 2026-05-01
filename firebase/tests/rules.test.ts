@@ -204,6 +204,39 @@ describe('user-scoped paths', () => {
   });
 });
 
+describe('meta + telemetry paths (server-only)', () => {
+  it('authenticated user cannot read /meta', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.database().ref('meta/anthropic_cost/2026-05-01').set(0.5);
+    });
+    await assertFails(
+      refFor(A, 'meta/anthropic_cost/2026-05-01').once('value'),
+    );
+  });
+
+  it('authenticated user cannot write /meta', async () => {
+    await assertFails(refFor(A, 'meta/anthropic_cost/2026-05-01').set(0));
+  });
+
+  it('authenticated user cannot read /telemetry', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref('telemetry/traces/2026-05-01/x')
+        .set({ prompt_role: 'translator' });
+    });
+    await assertFails(refFor(A, 'telemetry/traces/2026-05-01').once('value'));
+  });
+
+  it('authenticated user cannot write /telemetry', async () => {
+    await assertFails(
+      refFor(A, 'telemetry/traces/2026-05-01/x').set({
+        prompt_role: 'translator',
+      }),
+    );
+  });
+});
+
 describe('pair_codes path (server-only)', () => {
   it('authenticated user cannot read pair_codes', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
