@@ -16,6 +16,9 @@
           },
           "paired_at": {
             ".write": false
+          },
+          "active_session_id": {
+            ".write": false
           }
         },
         "settings": {
