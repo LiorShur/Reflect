@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useNavigation } from '@react-navigation/native';
@@ -39,6 +39,23 @@ export default function HomeScreen() {
   const showResumeButton = signedIn && activeSessionId !== null;
   const showStartButton =
     signedIn && paired && tierLow && activeSessionId === null;
+
+  // Auto-route into a session ONLY on the transition from "no
+  // session" → "session exists". The ref prevents a Back-button trap:
+  // if the user pops back from Session to Home, activeSessionId is
+  // still set, but `prev` was also set, so the effect doesn't re-fire.
+  // (native-stack keeps Home mounted underneath, so the ref persists.)
+  // First mount with an existing active session DOES auto-route — that
+  // covers the partner-side flow when one device starts and the other
+  // is sitting on Home.
+  const prevSessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevSessionIdRef.current;
+    if (prev === null && activeSessionId !== null) {
+      navigation.navigate('Session', { sessionId: activeSessionId });
+    }
+    prevSessionIdRef.current = activeSessionId;
+  }, [activeSessionId, navigation]);
 
   const startSession = async () => {
     setCreating(true);
