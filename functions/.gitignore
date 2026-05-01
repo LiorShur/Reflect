@@ -1,0 +1,5 @@
+# Compiled TS output
+lib/
+
+# Build artifact: prompts copied from workspace root by scripts/copy-prompts.js
+prompts/

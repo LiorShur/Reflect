@@ -35,6 +35,24 @@ pair_codes/                        # server-only — never client readable/writa
     created_at: timestamp
     expires_at: timestamp          # 10-min TTL
 
+meta/                              # server-only — orchestrator + cap tracking
+  anthropic_cost/
+    {YYYY-MM-DD}: number           # accumulated USD spent that day
+
+telemetry/                         # server-only — anonymized trace logs
+  traces/
+    {YYYY-MM-DD}/
+      {push_id}/
+        prompt_role: string
+        prompt_version: string
+        model: string
+        input_hash: string         # SHA-256, never raw text (CLAUDE.md rail #2)
+        output_hash: string | null
+        session_id_hash: string | null
+        latency_ms: number
+        cost_usd: number | null
+        created_at: timestamp
+
 sessions/
   {sessionId}/
     meta/
