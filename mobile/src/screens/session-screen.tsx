@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { getDatabase, ref, set } from 'firebase/database';
+import { getDatabase, onDisconnect, ref, set } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   useNavigation,
@@ -37,6 +37,27 @@ export default function SessionScreen() {
   const auth = useAuthState();
   const uid = currentUid(auth);
   const session = useSession(sessionId);
+
+  // Mark the local user as present in this session while mounted, so
+  // the partner's Home screen can auto-flip them in too. onDisconnect
+  // covers app crashes / network drops; the explicit set(false) on
+  // unmount covers clean Back-presses.
+  useEffect(() => {
+    if (!uid) return;
+    const fb = tryInitFirebase();
+    if (!fb) return;
+    const presenceRef = ref(
+      fb.database,
+      `sessions/${sessionId}/presence/${uid}/online`,
+    );
+    void set(presenceRef, true);
+    const disconnect = onDisconnect(presenceRef);
+    void disconnect.set(false);
+    return () => {
+      void set(presenceRef, false);
+      void disconnect.cancel();
+    };
+  }, [sessionId, uid]);
 
   if (!session.ready) {
     return (

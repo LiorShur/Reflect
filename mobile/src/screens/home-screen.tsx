@@ -9,7 +9,10 @@ import { tryInitFirebase } from '../firebase';
 import { useAuthState, type AuthState } from '../hooks/use-auth-state';
 import { usePair, type PairState } from '../hooks/use-pair';
 import { useScreening, type ScreeningState } from '../hooks/use-screening';
-import { useActiveSessionId } from '../hooks/use-session';
+import {
+  useActiveSessionId,
+  usePartnerSessionPresence,
+} from '../hooks/use-session';
 
 export default function HomeScreen() {
   const auth = useAuthState();
@@ -17,6 +20,11 @@ export default function HomeScreen() {
   const pair = usePair(uid);
   const screening = useScreening(uid);
   const activeSessionId = useActiveSessionId(uid);
+  const partnerUid = pair.ready ? pair.partnerUid : null;
+  const partnerInSession = usePartnerSessionPresence(
+    activeSessionId,
+    partnerUid,
+  );
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [creating, setCreating] = useState(false);
@@ -56,6 +64,19 @@ export default function HomeScreen() {
     }
     prevSessionIdRef.current = activeSessionId;
   }, [activeSessionId, navigation]);
+
+  // Partner-presence auto-route: when the partner enters the active
+  // session (presence flips false → true), pull this device in too.
+  // Same ref-guard pattern as above so a Back-press doesn't loop the
+  // user back into the session against their will.
+  const prevPartnerInSessionRef = useRef(false);
+  useEffect(() => {
+    const prev = prevPartnerInSessionRef.current;
+    if (!prev && partnerInSession && activeSessionId) {
+      navigation.navigate('Session', { sessionId: activeSessionId });
+    }
+    prevPartnerInSessionRef.current = partnerInSession;
+  }, [partnerInSession, activeSessionId, navigation]);
 
   const startSession = async () => {
     setCreating(true);
@@ -109,7 +130,11 @@ export default function HomeScreen() {
             navigation.navigate('Session', { sessionId: activeSessionId! })
           }
         >
-          <Text style={styles.buttonLabel}>Resume session</Text>
+          <Text style={styles.buttonLabel}>
+            {partnerInSession
+              ? 'Join — your partner is in the session'
+              : 'Resume session'}
+          </Text>
         </Pressable>
       ) : null}
 

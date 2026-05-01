@@ -68,6 +68,41 @@ export function useSession(sessionId: string | null): SessionStateView {
   return state;
 }
 
+// Subscribes to /sessions/{sid}/presence/{partnerUid}/online so Home
+// can detect when the partner has entered the session screen and
+// auto-flip the current device into the session too. SessionScreen
+// is responsible for writing the presence flag for the local user.
+export function usePartnerSessionPresence(
+  sessionId: string | null,
+  partnerUid: string | null,
+): boolean {
+  const [online, setOnline] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId || !partnerUid) {
+      setOnline(false);
+      return;
+    }
+    const fb = tryInitFirebase();
+    if (!fb) {
+      setOnline(false);
+      return;
+    }
+    const r = ref(
+      fb.database,
+      `sessions/${sessionId}/presence/${partnerUid}/online`,
+    );
+    const handler = (snap: { val: () => unknown }) => {
+      setOnline(snap.val() === true);
+    };
+    const errorHandler = () => setOnline(false);
+    onValue(r, handler, errorHandler);
+    return () => off(r, 'value', handler);
+  }, [sessionId, partnerUid]);
+
+  return online;
+}
+
 // Subscribes to users/{uid}/profile/active_session_id so the Home
 // screen can route into a freshly-created session immediately and out
 // of an ENDED one.
