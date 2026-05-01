@@ -9,12 +9,15 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import HomeScreen from './src/screens/home-screen';
 import PairingScreen from './src/screens/pairing-screen';
+import ScreeningScreen from './src/screens/screening-screen';
 import SettingsScreen from './src/screens/settings-screen';
+import QuickExitButton from './src/components/quick-exit-button';
 import { useAutoSignIn } from './src/hooks/use-auto-sign-in';
 
 export type RootStackParamList = {
   Home: undefined;
   Pairing: undefined;
+  Screening: undefined;
   Settings: undefined;
 };
 
@@ -51,6 +54,17 @@ export default function App() {
             name="Pairing"
             component={PairingScreen}
             options={{ headerTitle: 'Pair' }}
+          />
+          <Stack.Screen
+            name="Screening"
+            component={ScreeningScreen}
+            options={{
+              headerTitle: 'Quick check-in',
+              // docs/07 § Quick-exit pattern requires a direct
+              // "Leave now" button on every screening screen, not
+              // just a path through Settings.
+              headerRight: () => <QuickExitButton variant="header" />,
+            }}
           />
           <Stack.Screen
             name="Settings"
