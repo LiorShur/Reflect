@@ -22,6 +22,11 @@ export interface SessionMeta {
   topic?: string;
   paused_until?: number;
   pause_reason?: string;
+  // Set by the orchestrator while in CHECK_IN so each client can
+  // render a partner-aware ready/waiting view without reading the
+  // other partner's checkin record.
+  partnerA_ready?: boolean;
+  partnerB_ready?: boolean;
 }
 
 export type SessionStateView =

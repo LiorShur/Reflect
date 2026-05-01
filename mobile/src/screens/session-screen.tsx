@@ -62,8 +62,27 @@ export default function SessionScreen() {
   const isRaiser = meta.raiser_uid === uid;
 
   switch (meta.state) {
-    case 'CHECK_IN':
-      return <CheckInView sessionId={sessionId} uid={uid} />;
+    case 'CHECK_IN': {
+      const isPartnerA = meta.partnerA === uid;
+      const selfReady = isPartnerA
+        ? meta.partnerA_ready === true
+        : meta.partnerB_ready === true;
+      const partnerReady = isPartnerA
+        ? meta.partnerB_ready === true
+        : meta.partnerA_ready === true;
+      if (selfReady && !partnerReady) {
+        return (
+          <WaitingView label="You're ready. Waiting for your partner to check in." />
+        );
+      }
+      return (
+        <CheckInView
+          sessionId={sessionId}
+          uid={uid}
+          partnerReady={partnerReady}
+        />
+      );
+    }
     case 'TOPIC_INTAKE':
       return isRaiser ? (
         <TopicIntakeView sessionId={sessionId} />
@@ -149,7 +168,15 @@ function StaleSessionView({ sessionId }: { sessionId: string }) {
 }
 
 // CHECK_IN
-function CheckInView({ sessionId, uid }: { sessionId: string; uid: string }) {
+function CheckInView({
+  sessionId,
+  uid,
+  partnerReady,
+}: {
+  sessionId: string;
+  uid: string;
+  partnerReady: boolean;
+}) {
   const [score, setScore] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -178,6 +205,11 @@ function CheckInView({ sessionId, uid }: { sessionId: string; uid: string }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.heading}>Quick check-in</Text>
+      {partnerReady ? (
+        <View style={styles.partnerStatus}>
+          <Text style={styles.partnerStatusLabel}>Your partner is ready.</Text>
+        </View>
+      ) : null}
       <Text style={styles.paragraph}>
         How activated are you right now? 1 means calm and grounded; 10 means
         overwhelmed.
@@ -397,6 +429,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
   },
+  partnerStatus: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#dcfce7',
+    borderRadius: 6,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  partnerStatusLabel: { fontSize: 14, color: '#166534' },
   scoreRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

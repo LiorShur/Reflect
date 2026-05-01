@@ -2,7 +2,11 @@ import { getDatabase } from 'firebase-admin/database';
 import { logger } from 'firebase-functions/v2';
 import { onValueWritten } from 'firebase-functions/v2/database';
 
-import { decideCheckInTransition, type CheckIn } from './session-utils';
+import {
+  checkInReady,
+  decideCheckInTransition,
+  type CheckIn,
+} from './session-utils';
 
 interface SessionMeta {
   partnerA?: string;
@@ -49,13 +53,30 @@ export const onCheckinWritten = onValueWritten(
     const a = (aSnap.val() as CheckIn | null) ?? null;
     const b = (bSnap.val() as CheckIn | null) ?? null;
 
-    const decision = decideCheckInTransition(a, b);
-    if ('wait' in decision) return;
+    // Mirror the per-partner readiness onto meta so each client can
+    // render the correct partner-aware view without reading the other
+    // partner's checkin (which the rules deny). Boolean only — the
+    // actual score never crosses the partner boundary.
+    const partnerA_ready = checkInReady(a);
+    const partnerB_ready = checkInReady(b);
 
-    if (decision.advance === 'TOPIC_INTAKE') {
+    const decision = decideCheckInTransition(a, b);
+
+    if ('wait' in decision) {
+      // Write readiness without changing state so the still-waiting
+      // partner sees the "your partner is ready" cue.
       await db
         .ref(`sessions/${sessionId}/meta`)
-        .update({ state: 'TOPIC_INTAKE' });
+        .update({ partnerA_ready, partnerB_ready });
+      return;
+    }
+
+    if (decision.advance === 'TOPIC_INTAKE') {
+      await db.ref(`sessions/${sessionId}/meta`).update({
+        state: 'TOPIC_INTAKE',
+        partnerA_ready,
+        partnerB_ready,
+      });
       logger.info('CHECK_IN → TOPIC_INTAKE', { session_id: sessionId });
       return;
     }
@@ -67,6 +88,8 @@ export const onCheckinWritten = onValueWritten(
       state_before_pause: 'CHECK_IN',
       paused_until: Date.now() + PAUSE_DURATION_MS,
       pause_reason: decision.reason,
+      partnerA_ready,
+      partnerB_ready,
     });
     logger.info('CHECK_IN → PAUSED', {
       session_id: sessionId,

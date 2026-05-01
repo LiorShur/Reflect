@@ -90,6 +90,14 @@ function isReady(c: CheckIn | null): boolean {
   );
 }
 
+// Exported for the checkin trigger so it can write per-partner
+// readiness flags to meta (so each client can render a "you're
+// ready, waiting for partner" or "your partner is ready" view
+// without leaking the score across the partner boundary).
+export function checkInReady(c: CheckIn | null): boolean {
+  return isReady(c);
+}
+
 function isFlooding(c: CheckIn | null): boolean {
   return !!c && typeof c.flooding_score === 'number' && c.flooding_score >= 8;
 }
