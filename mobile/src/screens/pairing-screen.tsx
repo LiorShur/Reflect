@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,8 +10,13 @@ import {
   View,
 } from 'react-native';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import type { RootStackParamList } from '../../App';
 import { tryInitFirebase } from '../firebase';
+import { useAuthState, type AuthState } from '../hooks/use-auth-state';
+import { usePair } from '../hooks/use-pair';
 
 type Mode = 'choose' | 'generate' | 'enter';
 
@@ -23,11 +28,32 @@ interface RedeemResponse {
   partner_uid: string;
 }
 
+function currentUid(auth: AuthState): string | null {
+  if (!auth.ready || 'error' in auth) return null;
+  return auth.user?.uid ?? null;
+}
+
 export default function PairingScreen() {
   const [mode, setMode] = useState<Mode>('choose');
   const [code, setCode] = useState<string | null>(null);
   const [enteredCode, setEnteredCode] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const auth = useAuthState();
+  const uid = currentUid(auth);
+  const pair = usePair(uid);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  // Auto-return to Home as soon as the binding lands in RTDB. Covers
+  // the asymmetric case where Device A generated the code (and is
+  // sitting on the "share this code" screen) — the redemption from
+  // Device B doesn't otherwise notify Device A's UI.
+  useEffect(() => {
+    if (pair.ready && pair.partnerUid) {
+      navigation.popToTop();
+    }
+  }, [pair, navigation]);
 
   const callCreate = async () => {
     setBusy(true);
