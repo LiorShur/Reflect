@@ -13,10 +13,14 @@ users/
       display_name: string
       partner_uid: string | null   # set after pairing (orchestrator-written)
       paired_at: timestamp         # set after pairing (orchestrator-written)
-    screening/                     # readable by self only
+    screening/                     # readable by self only — orchestrator-written
       completed_at: timestamp
       tier: "low" | "moderate" | "high"
-      flags: [...]
+      flags: [<question_id_with_severity>, ...]   # e.g. ["q1_physical_harm", "q10_afraid"]
+      # NOTE: raw answers are NEVER stored. The flags array records which
+      # questions contributed to the tier so we can re-evaluate logic
+      # without retaining the answer text. See docs/07-safety-screening.md
+      # § Privacy.
     settings/                      # readable by self only
       notifications: {...}
       voice_enabled: boolean       # v2
@@ -293,6 +297,36 @@ or write `/pair_codes` directly.
 Codes are 10-minute TTL so an unused code can't sit indefinitely. The
 TTL is enforced inside `redeemPairCode`; expired entries are also
 swept by a scheduled cleanup function (TBD in a follow-up).
+
+## Screening flow
+
+Per-user, on-device, completed before pairing per docs/07. Answers
+never reach RTDB; only the computed tier + the IDs of questions that
+contributed to that tier are persisted.
+
+```
+1. submitScreening({answers}, auth=A) →
+     - precondition: A.profile.partner_uid does not exist
+       (screening must complete before pairing)
+     - validates: all 11 question IDs present, each score 0..4
+     - server-side tier computation (orchestrator):
+         * Q1 > 0 → high (overrides everything)
+         * Block A (Q1-Q4): max item score → high (≥3) / moderate (2) / low
+         * Block B (Q5-Q9): high if any ≥3, moderate if 2+ items at ≥2
+         * Block C (Q10 afraid, Q11 free-to-disagree, reverse-scored):
+             high if Q10≥3 OR Q11≤1; moderate if Q10=2 OR Q11=2
+         * final tier = max(blockA, blockB, blockC, q1_override)
+     - writes users/{uid}/screening = { completed_at, tier, flags }
+     - returns { tier }
+```
+
+Tier is then used client-side to gate features (joint conflict mode
+disabled for moderate/high; resources surfaced more prominently for
+moderate; explicit stealth + resources for high). See docs/07
+§ Tier responses.
+
+Re-screening (S6) and the in-session disclosure detector (S7) are
+deferred to follow-up PRs.
 
 ## Indexes
 
