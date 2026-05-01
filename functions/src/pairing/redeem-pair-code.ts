@@ -1,4 +1,5 @@
 import { getDatabase } from 'firebase-admin/database';
+import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { isExpired, isValidCodeFormat, wouldSelfPair } from './code-utils';
@@ -16,6 +17,8 @@ interface PairCodeRecord {
   created_at: number;
   expires_at: number;
 }
+
+type AbortReason = 'missing' | 'expired' | 'self_pair';
 
 export const redeemPairCode = onCall<
   RedeemPairCodeRequest,
@@ -41,23 +44,56 @@ export const redeemPairCode = onCall<
   // Atomically claim the code: the transaction sets the node to null
   // (which deletes it) iff the record is present, unexpired, and not
   // self-pairing. Concurrent redeemers race here; only one wins.
+  // The closure captures the abort reason so we can return a specific
+  // error to the client (and log it) instead of a generic "invalid".
   let claimedCreator: string | null = null;
+  let abortReason: AbortReason | null = null;
   const now = Date.now();
   const claim = await db
     .ref(`pair_codes/${code}`)
     .transaction((current: PairCodeRecord | null) => {
-      if (current === null) return; // missing
-      if (isExpired(current.expires_at, now)) return; // expired
-      if (wouldSelfPair(current.creator_uid, uid)) return; // self-pair
+      if (current === null) {
+        abortReason = 'missing';
+        return;
+      }
+      if (isExpired(current.expires_at, now)) {
+        abortReason = 'expired';
+        return;
+      }
+      if (wouldSelfPair(current.creator_uid, uid)) {
+        abortReason = 'self_pair';
+        return;
+      }
       claimedCreator = current.creator_uid;
+      abortReason = null;
       return null; // delete (claim)
     });
 
   if (!claim.committed || claimedCreator === null) {
-    throw new HttpsError(
-      'not-found',
-      'That code is invalid, expired, or already used.',
-    );
+    logger.info('redeemPairCode aborted', {
+      reason: abortReason ?? 'unknown',
+      committed: claim.committed,
+      uid_prefix: uid.slice(0, 8),
+    });
+    if (abortReason === 'missing') {
+      throw new HttpsError(
+        'not-found',
+        'No active code with that number. Ask your partner to generate a new one.',
+      );
+    }
+    if (abortReason === 'expired') {
+      throw new HttpsError(
+        'deadline-exceeded',
+        'That code has expired. Ask your partner to generate a new one.',
+      );
+    }
+    if (abortReason === 'self_pair') {
+      throw new HttpsError(
+        'failed-precondition',
+        "That's your own code. Enter your partner's code instead.",
+      );
+    }
+    throw new HttpsError('not-found', 'That code could not be redeemed.');
   }
 
   // Defensive: creator might have been paired by another flow between

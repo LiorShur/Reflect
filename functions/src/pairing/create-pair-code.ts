@@ -1,4 +1,5 @@
 import { getDatabase } from 'firebase-admin/database';
+import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { generateCode, PAIR_CODE_TTL_MS } from './code-utils';
@@ -39,6 +40,11 @@ export const createPairCode = onCall<unknown, Promise<CreatePairCodeResponse>>(
           };
         });
       if (result.committed) {
+        logger.info('createPairCode wrote pair_codes entry', {
+          code,
+          uid_prefix: uid.slice(0, 8),
+          db_url: db.app.options.databaseURL ?? '(unset)',
+        });
         return { code };
       }
     }
