@@ -41,20 +41,19 @@ export function useScreening(uid: string | null): ScreeningState {
     const r = ref(fb.database, `users/${uid}/screening`);
     const handler = (snap: { val: () => unknown }) => {
       const val = snap.val() as ScreeningRecord | null;
-      if (
-        !val ||
-        typeof val.completed_at !== 'number' ||
-        !val.tier ||
-        !Array.isArray(val.flags)
-      ) {
+      if (!val || typeof val.completed_at !== 'number' || !val.tier) {
         setState({ ready: true, completed: false });
         return;
       }
+      // Firebase RTDB silently drops empty arrays on write, so a low-
+      // tier record (which has flags: []) comes back with no flags
+      // field at all. Treat missing as empty.
+      const flags = Array.isArray(val.flags) ? val.flags : [];
       setState({
         ready: true,
         completed: true,
         tier: val.tier,
-        flags: val.flags,
+        flags,
         completedAt: val.completed_at,
       });
     };
