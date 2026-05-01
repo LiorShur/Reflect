@@ -10,7 +10,9 @@ import {
   getAuth,
   initializeAuth,
   // @ts-expect-error — getReactNativePersistence is exported at runtime
-  // but missing from firebase 10.x public type definitions.
+  // (Metro resolves @firebase/auth's "react-native" condition via
+  // mobile/metro.config.js) but the public TypeScript declarations only
+  // ship the web bundle's exports.
   getReactNativePersistence,
 } from 'firebase/auth';
 import { Database, getDatabase } from 'firebase/database';
