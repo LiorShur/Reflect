@@ -16,6 +16,7 @@ import {
   onValue,
   ref,
   set,
+  update,
 } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -876,12 +877,11 @@ function ListenerMirrorView({
       // mirror is `!data.exists()` per security rules — the write is
       // a one-shot. retry_hint clears alongside so the speaker's
       // hint doesn't leak into a future turn.
-      await getDatabase(fb.app)
-        .ref(`sessions/${sessionId}/current_turn`)
-        .update({
-          mirror: { text, submitted_at: Date.now() },
-          retry_hint: null,
-        });
+      const db = getDatabase(fb.app);
+      await update(ref(db, `sessions/${sessionId}/current_turn`), {
+        mirror: { text, submitted_at: Date.now() },
+        retry_hint: null,
+      });
     } catch (err) {
       Alert.alert('Could not send reflection', readableError(err));
     } finally {
