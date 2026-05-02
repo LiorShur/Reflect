@@ -30,6 +30,7 @@ import { tryInitFirebase } from '../firebase';
 import { useAuthState, type AuthState } from '../hooks/use-auth-state';
 import { useCurrentTurn, type CurrentTurn } from '../hooks/use-current-turn';
 import { useSession, type SessionMeta } from '../hooks/use-session';
+import { useSummary } from '../hooks/use-summary';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'Session'>;
@@ -134,9 +135,10 @@ export default function SessionScreen() {
       return <PausedView meta={meta} />;
     case 'WRAP_UP':
       return (
-        <PlaceholderView
-          title="Wrap-up"
-          body="Wrap-up summaries land in a later milestone."
+        <WrapUpView
+          sessionId={sessionId}
+          uid={uid}
+          partnerAUid={meta.partnerA}
         />
       );
     case 'ENDED':
@@ -1106,20 +1108,24 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
   const turn = turnView.turn ?? {};
   const summary = turn.floor_swap_summary;
   const alreadyAcked = turn.swap_acks?.[uid] === true;
+  const alreadyEndAcked = turn.end_acks?.[uid] === true;
   const isNextSpeaker = turn.speaker_uid === uid;
 
-  const ack = async () => {
+  const callable = async (
+    name: 'ackFloorSwap' | 'requestSessionEnd',
+    failureLabel: string,
+  ) => {
     setBusy(true);
     try {
       const fb = tryInitFirebase();
       if (!fb) throw new Error('Firebase not configured.');
       const fn = httpsCallable<{ session_id: string }, { ok: true }>(
         getFunctions(fb.app),
-        'ackFloorSwap',
+        name,
       );
       await fn({ session_id: sessionId });
     } catch (err) {
-      Alert.alert('Could not continue', readableError(err));
+      Alert.alert(failureLabel, readableError(err));
     } finally {
       setBusy(false);
     }
@@ -1156,7 +1162,7 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
           (busy || alreadyAcked) && styles.disabledButton,
         ]}
         disabled={busy || alreadyAcked}
-        onPress={ack}
+        onPress={() => callable('ackFloorSwap', 'Could not continue')}
       >
         <Text style={styles.primaryLabel}>
           {alreadyAcked
@@ -1165,6 +1171,151 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
               ? 'Sending…'
               : 'Ready to continue'}
         </Text>
+      </Pressable>
+      <Pressable
+        style={[
+          styles.secondaryButton,
+          (busy || alreadyEndAcked) && styles.disabledButton,
+        ]}
+        disabled={busy || alreadyEndAcked}
+        onPress={() =>
+          callable('requestSessionEnd', 'Could not request end of session')
+        }
+      >
+        <Text style={styles.secondaryLabel}>
+          {alreadyEndAcked
+            ? 'Waiting for partner to also end…'
+            : 'End the session'}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+// C9 — Wrap-up. Both partners see two AI-generated summary cards (one
+// per partner). Each partner taps "This captures it" against their
+// OWN summary; once both have confirmed, the wrap-up confirm trigger
+// transitions to ENDED.
+//
+// Deferred to a follow-up: per-card "let me adjust" rewrite, the
+// three next-action options (leave / schedule problem-solving / add
+// to perpetual), and the optional appreciation prompt.
+function WrapUpView({
+  sessionId,
+  uid,
+  partnerAUid,
+}: {
+  sessionId: string;
+  uid: string;
+  partnerAUid: string;
+}) {
+  const navigation = useNavigation<Nav>();
+  const summaryView = useSummary(sessionId);
+  const [busy, setBusy] = useState(false);
+
+  if (!summaryView.ready) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  const summary = summaryView.summary;
+  const summariesReady =
+    !!summary?.partner_a_summary && !!summary?.partner_b_summary;
+
+  if (!summariesReady) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+        <Text style={[styles.paragraph, { marginTop: 16 }]}>
+          Putting together what each of you said…
+        </Text>
+      </View>
+    );
+  }
+
+  const isPartnerA = uid === partnerAUid;
+  const ownSummary = isPartnerA
+    ? summary.partner_a_summary
+    : summary.partner_b_summary;
+  const partnerSummary = isPartnerA
+    ? summary.partner_b_summary
+    : summary.partner_a_summary;
+  const ownConfirmed = isPartnerA
+    ? summary.partner_a_confirmed === true
+    : summary.partner_b_confirmed === true;
+  const partnerConfirmed = isPartnerA
+    ? summary.partner_b_confirmed === true
+    : summary.partner_a_confirmed === true;
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      // Direct RTDB write — security rules already grant each partner
+      // write access to their own confirmation flag. The wrap-up
+      // confirm trigger picks it up and transitions to ENDED when
+      // both partners have flipped their flag.
+      const db = getDatabase(fb.app);
+      const field = isPartnerA ? 'partner_a_confirmed' : 'partner_b_confirmed';
+      await set(ref(db, `sessions/${sessionId}/summary/${field}`), true);
+    } catch (err) {
+      Alert.alert('Could not confirm', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.stepLabel}>Wrap-up</Text>
+      <Text style={styles.heading}>Here's what I heard you both say</Text>
+
+      <Text style={styles.smallLabel}>Your story</Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{ownSummary}</Text>
+      </View>
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy || ownConfirmed) && styles.disabledButton,
+        ]}
+        disabled={busy || ownConfirmed}
+        onPress={confirm}
+      >
+        <Text style={styles.primaryLabel}>
+          {ownConfirmed
+            ? partnerConfirmed
+              ? 'Confirmed — wrapping up…'
+              : 'Confirmed — waiting for your partner'
+            : busy
+              ? 'Confirming…'
+              : 'This captures it'}
+        </Text>
+      </Pressable>
+
+      <Text style={[styles.smallLabel, { marginTop: 24 }]}>Their story</Text>
+      <View style={[styles.translationBox, styles.translationBoxMuted]}>
+        <Text style={styles.translationText}>{partnerSummary}</Text>
+      </View>
+      {partnerConfirmed ? (
+        <Text style={styles.helper}>
+          Your partner has confirmed their summary.
+        </Text>
+      ) : (
+        <Text style={styles.helper}>
+          Your partner is reviewing their summary.
+        </Text>
+      )}
+
+      <Pressable
+        style={styles.secondaryButton}
+        onPress={() => navigation.popToTop()}
+      >
+        <Text style={styles.secondaryLabel}>Back to home</Text>
       </Pressable>
     </ScrollView>
   );
