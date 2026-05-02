@@ -9,7 +9,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { getDatabase, onDisconnect, ref, set } from 'firebase/database';
+import {
+  getDatabase,
+  off,
+  onDisconnect,
+  onValue,
+  ref,
+  set,
+} from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   useNavigation,
@@ -118,7 +125,9 @@ export default function SessionScreen() {
         <TopicAgreeView sessionId={sessionId} topic={meta.topic ?? ''} />
       );
     case 'IN_TURN':
-      return <InTurnView sessionId={sessionId} uid={uid} />;
+      return (
+        <InTurnView sessionId={sessionId} uid={uid} topic={meta.topic ?? ''} />
+      );
     case 'PAUSED':
       return <PausedView meta={meta} />;
     case 'WRAP_UP':
@@ -300,15 +309,17 @@ function TopicIntakeView({ sessionId }: { sessionId: string }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.stepLabel}>Step 1 — Pick a topic</Text>
       <Text style={styles.heading}>What would you like to talk about?</Text>
       <Text style={styles.paragraph}>
-        One sentence is enough. Your partner will see this and either accept it
-        or ask you to reframe.
+        Just the headline, in one sentence — not your full thoughts. Your
+        partner will accept it or ask you to reframe before either of you starts
+        speaking.
       </Text>
       <TextInput
         value={topic}
         onChangeText={setTopic}
-        placeholder="The thing on your mind…"
+        placeholder="e.g. how we split chores on weekends"
         multiline
         style={styles.topicInput}
         editable={!busy}
@@ -323,9 +334,12 @@ function TopicIntakeView({ sessionId }: { sessionId: string }) {
         onPress={submit}
       >
         <Text style={styles.primaryLabel}>
-          {busy ? 'Sending…' : 'Send to partner'}
+          {busy ? 'Sending…' : 'Send topic to partner'}
         </Text>
       </Pressable>
+      <Text style={styles.helper}>
+        We'll moderate your actual statements once the conversation starts.
+      </Text>
     </ScrollView>
   );
 }
@@ -427,8 +441,21 @@ function readableError(err: unknown): string {
 
 // IN_TURN router. Routes by speaker/listener role + sub-state derived
 // from current_turn (speaker_draft, translation, delivered).
-function InTurnView({ sessionId, uid }: { sessionId: string; uid: string }) {
+function InTurnView({
+  sessionId,
+  uid,
+  topic,
+}: {
+  sessionId: string;
+  uid: string;
+  topic: string;
+}) {
   const turnView = useCurrentTurn(sessionId);
+  const speakerUid =
+    turnView.ready && turnView.turn
+      ? (turnView.turn.speaker_uid ?? null)
+      : null;
+  const latestFlag = useLatestSpeakerFlag(sessionId, speakerUid);
 
   if (!turnView.ready) {
     return (
@@ -492,8 +519,9 @@ function InTurnView({ sessionId, uid }: { sessionId: string; uid: string }) {
     return (
       <ComposeView
         sessionId={sessionId}
+        topic={topic}
         initialText={turn.speaker_draft?.raw ?? ''}
-        moderatorWarning={null}
+        moderatorWarning={deriveSpeakerWarning(latestFlag)}
       />
     );
   }
@@ -506,10 +534,12 @@ function InTurnView({ sessionId, uid }: { sessionId: string; uid: string }) {
 
 function ComposeView({
   sessionId,
+  topic,
   initialText,
   moderatorWarning,
 }: {
   sessionId: string;
+  topic: string;
   initialText: string;
   moderatorWarning: string | null;
 }) {
@@ -540,7 +570,14 @@ function ComposeView({
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Your turn</Text>
+      <Text style={styles.stepLabel}>Step 2 — Your turn</Text>
+      <Text style={styles.heading}>Speak to the topic</Text>
+      {topic ? (
+        <View style={styles.topicContext}>
+          <Text style={styles.topicContextLabel}>Talking about</Text>
+          <Text style={styles.topicContextText}>{topic}</Text>
+        </View>
+      ) : null}
       <Text style={styles.paragraph}>
         Say what's on your mind. We'll suggest a softened version before your
         partner sees it — you decide what to send.
@@ -573,6 +610,69 @@ function ComposeView({
       </Pressable>
     </ScrollView>
   );
+}
+
+interface ModeratorFlag {
+  type?: string;
+  severity?: number;
+  target_uid?: string | null;
+  created_at?: number;
+}
+
+// Subscribes to /sessions/{sid}/flags and returns the most recent
+// flag whose target_uid matches the speaker. Used by ComposeView to
+// surface tier_3 hard-block feedback after the speaker-draft trigger
+// reverts a commit. Cheap: flags is a small list that grows by ~1
+// per blocked attempt within a session.
+function useLatestSpeakerFlag(
+  sessionId: string,
+  speakerUid: string | null,
+): ModeratorFlag | null {
+  const [flag, setFlag] = useState<ModeratorFlag | null>(null);
+
+  useEffect(() => {
+    if (!speakerUid) {
+      setFlag(null);
+      return;
+    }
+    const fb = tryInitFirebase();
+    if (!fb) return;
+    const r = ref(fb.database, `sessions/${sessionId}/flags`);
+    const handler = (snap: { val: () => unknown }) => {
+      const val = snap.val() as Record<string, ModeratorFlag> | null;
+      if (!val) {
+        setFlag(null);
+        return;
+      }
+      let latest: ModeratorFlag | null = null;
+      for (const entry of Object.values(val)) {
+        if (entry.target_uid !== speakerUid) continue;
+        if (!latest || (entry.created_at ?? 0) > (latest.created_at ?? 0)) {
+          latest = entry;
+        }
+      }
+      setFlag(latest);
+    };
+    onValue(r, handler, () => setFlag(null));
+    return () => off(r, 'value', handler);
+  }, [sessionId, speakerUid]);
+
+  return flag;
+}
+
+// Show a warning if the latest flag is recent (< 5 minutes). The
+// trigger writes the flag synchronously before reverting the commit,
+// and ComposeView re-mounts immediately after — so the timestamp
+// gives a robust "this attempt was just blocked" signal that fades
+// naturally as the speaker takes longer to retry.
+function deriveSpeakerWarning(flag: ModeratorFlag | null): string | null {
+  if (!flag || !flag.created_at) return null;
+  const ageMs = Date.now() - flag.created_at;
+  if (ageMs > 5 * 60_000) return null;
+  if (flag.type === 'harsh_startup') {
+    return 'That came across pretty hot. Try saying what you need or feel, not what your partner is doing wrong.';
+  }
+  return 'Try a softer phrasing before sending.';
 }
 
 function TranslatorReviewView({
@@ -735,6 +835,32 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   heading: { fontSize: 22, fontWeight: '600', marginBottom: 12 },
+  stepLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  topicContext: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#eff6ff',
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563eb',
+    borderRadius: 6,
+    marginBottom: 16,
+  },
+  topicContextLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1d4ed8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  topicContextText: { fontSize: 15, lineHeight: 20, color: '#0f172a' },
   paragraph: {
     fontSize: 15,
     lineHeight: 22,
