@@ -63,6 +63,7 @@ export interface CurrentTurn {
   speaker_confirmation?: SpeakerConfirmation;
   floor_swap_summary?: FloorSwapSummary;
   swap_acks?: Record<string, boolean>;
+  end_acks?: Record<string, boolean>;
   retry_hint?: string | null;
 }
 
