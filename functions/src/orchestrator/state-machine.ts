@@ -28,8 +28,8 @@ export type SessionEvent =
   | 'TOPIC_SUBMITTED' // raiser submitted topic
   | 'TOPIC_ACCEPTED' // responder accepted
   | 'TOPIC_REFRAMED' // responder asked to reframe
-  | 'TURN_HEARD' // speaker confirmation: heard | more
-  | 'TURN_RETRY' // speaker confirmation: retry
+  | 'TURN_HEARD' // speaker confirmation: yes / mostly (status='heard')
+  | 'TURN_RETRY' // speaker confirmation: retry (or 'more' — both stay IN_TURN)
   | 'TURN_SWAP_ACKNOWLEDGED' // both partners ack'd FLOOR_SWAP summary
   | 'SESSION_DONE_AGREED' // both agreed session is done from FLOOR_SWAP
   | 'WRAP_UP_CONFIRMED' // both partners confirmed wrap-up summaries

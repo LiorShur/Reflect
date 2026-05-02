@@ -28,12 +28,42 @@ export interface DeliveredMessage {
   version?: 'softened' | 'original';
 }
 
+export interface ListenerDraft {
+  content_field?: string;
+  feeling_field?: string;
+  committed?: boolean;
+}
+
+export interface MirrorRecord {
+  text?: string;
+  submitted_at?: number;
+}
+
+export interface SpeakerConfirmation {
+  status?: 'heard' | 'more' | 'retry';
+  hint?: string | null;
+}
+
+export interface FloorSwapSummary {
+  prev_speaker_uid?: string;
+  prev_listener_uid?: string;
+  delivered_text?: string;
+  mirror_text?: string;
+  created_at?: number;
+}
+
 export interface CurrentTurn {
   speaker_uid?: string;
   listener_uid?: string;
   speaker_draft?: SpeakerDraft;
   translation?: Translation;
   delivered?: DeliveredMessage;
+  listener_draft?: ListenerDraft;
+  mirror?: MirrorRecord;
+  speaker_confirmation?: SpeakerConfirmation;
+  floor_swap_summary?: FloorSwapSummary;
+  swap_acks?: Record<string, boolean>;
+  retry_hint?: string | null;
 }
 
 export type CurrentTurnView =

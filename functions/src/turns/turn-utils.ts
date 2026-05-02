@@ -75,3 +75,61 @@ export function isValidDecision(value: unknown): value is TranslationDecision {
     value === 'send_softened' || value === 'send_original' || value === 'edit'
   );
 }
+
+// Speaker's confirmation after seeing the listener's mirror.
+// docs/04 § Speaker confirmation:
+//   yes / mostly → archive + role swap → FLOOR_SWAP
+//   more         → archive sub-turn, same speaker keeps floor, fresh
+//                  compose, state stays IN_TURN
+//   retry        → clear mirror only, listener re-mirrors with optional
+//                  hint, state stays IN_TURN
+//
+// "yes" and "mostly" both map to status: 'heard' on the wire — the
+// difference is purely UX (mostly carries an optional hint). docs/06
+// (and the corresponding state-machine comment) previously suggested
+// "more" also went to FLOOR_SWAP; that conflicts with the screen spec
+// in docs/04 and is corrected here.
+export type ConfirmStatus = 'heard' | 'more' | 'retry';
+
+export function isValidConfirmStatus(value: unknown): value is ConfirmStatus {
+  return value === 'heard' || value === 'more' || value === 'retry';
+}
+
+export interface ConfirmDecision {
+  status: ConfirmStatus;
+  newState: 'IN_TURN' | 'FLOOR_SWAP';
+  archiveTurn: boolean;
+  swapRoles: boolean;
+  clearMirrorOnly: boolean;
+}
+
+// Pure planner — exported so the callable's dispatch logic is unit-
+// testable without firebase-admin. The callable in confirm-turn.ts
+// translates this plan into the actual RTDB multi-path update.
+export function planConfirmDecision(status: ConfirmStatus): ConfirmDecision {
+  if (status === 'heard') {
+    return {
+      status,
+      newState: 'FLOOR_SWAP',
+      archiveTurn: true,
+      swapRoles: true,
+      clearMirrorOnly: false,
+    };
+  }
+  if (status === 'more') {
+    return {
+      status,
+      newState: 'IN_TURN',
+      archiveTurn: true,
+      swapRoles: false,
+      clearMirrorOnly: false,
+    };
+  }
+  return {
+    status,
+    newState: 'IN_TURN',
+    archiveTurn: false,
+    swapRoles: false,
+    clearMirrorOnly: true,
+  };
+}

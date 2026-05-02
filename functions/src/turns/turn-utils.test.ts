@@ -1,7 +1,9 @@
 import {
+  isValidConfirmStatus,
   isValidDecision,
   isValidDraftText,
   parseTranslatorOutput,
+  planConfirmDecision,
 } from './turn-utils';
 
 describe('isValidDraftText', () => {
@@ -116,5 +118,47 @@ describe('isValidDecision', () => {
 
   it.each(['', 'foo', null, undefined, 0, {}])('rejects %p', (v) => {
     expect(isValidDecision(v)).toBe(false);
+  });
+});
+
+describe('isValidConfirmStatus', () => {
+  it.each(['heard', 'more', 'retry'])('accepts %s', (s) => {
+    expect(isValidConfirmStatus(s)).toBe(true);
+  });
+
+  it.each(['', 'yes', 'mostly', null, undefined, 0, {}])('rejects %p', (v) => {
+    expect(isValidConfirmStatus(v)).toBe(false);
+  });
+});
+
+describe('planConfirmDecision', () => {
+  it("'heard' archives, swaps roles, transitions to FLOOR_SWAP", () => {
+    expect(planConfirmDecision('heard')).toEqual({
+      status: 'heard',
+      newState: 'FLOOR_SWAP',
+      archiveTurn: true,
+      swapRoles: true,
+      clearMirrorOnly: false,
+    });
+  });
+
+  it("'more' archives the sub-turn, keeps speaker, stays IN_TURN", () => {
+    expect(planConfirmDecision('more')).toEqual({
+      status: 'more',
+      newState: 'IN_TURN',
+      archiveTurn: true,
+      swapRoles: false,
+      clearMirrorOnly: false,
+    });
+  });
+
+  it("'retry' clears the mirror only, stays IN_TURN, no archive", () => {
+    expect(planConfirmDecision('retry')).toEqual({
+      status: 'retry',
+      newState: 'IN_TURN',
+      archiveTurn: false,
+      swapRoles: false,
+      clearMirrorOnly: true,
+    });
   });
 });
