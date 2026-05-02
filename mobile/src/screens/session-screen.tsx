@@ -712,6 +712,14 @@ function TranslatorReviewView({
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.heading}>Looks good as-is</Text>
+        {translation.moderator_tier === 'tier_2' ? (
+          <View style={styles.warning}>
+            <Text style={styles.warningLabel}>
+              We picked up some heat in your wording. Take a beat to read it
+              back before sending.
+            </Text>
+          </View>
+        ) : null}
         <Text style={styles.paragraph}>
           Your message is already in the form we'd suggest.
         </Text>
@@ -741,6 +749,14 @@ function TranslatorReviewView({
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.heading}>Suggested wording</Text>
+      {translation.moderator_tier === 'tier_2' ? (
+        <View style={styles.warning}>
+          <Text style={styles.warningLabel}>
+            This came across with some heat. The suggested wording aims for the
+            same point in a way that lands easier.
+          </Text>
+        </View>
+      ) : null}
       {translation.cannot_soften ? (
         <Text style={styles.paragraph}>
           {translation.changes_made ||
