@@ -16,7 +16,6 @@ import {
   onValue,
   ref,
   set,
-  update,
 } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -874,13 +873,17 @@ function ListenerMirrorView({
       const fb = tryInitFirebase();
       if (!fb) throw new Error('Firebase not configured.');
       const text = `${trimmedContent}\n\nIt sounded like you felt: ${trimmedFeeling}`;
-      // mirror is `!data.exists()` per security rules — the write is
-      // a one-shot. retry_hint clears alongside so the speaker's
-      // hint doesn't leak into a future turn.
+      // Write directly to /mirror — that's the path the security rule
+      // grants the listener (`!data.exists()`, IN_TURN). Updating the
+      // parent current_turn would also touch retry_hint, which has no
+      // client write rule and would default-deny the whole multi-path
+      // update. retry_hint is server-managed: confirmTurn sets it on
+      // every retry and clears it on more / floor-swap, so we don't
+      // need to touch it here.
       const db = getDatabase(fb.app);
-      await update(ref(db, `sessions/${sessionId}/current_turn`), {
-        mirror: { text, submitted_at: Date.now() },
-        retry_hint: null,
+      await set(ref(db, `sessions/${sessionId}/current_turn/mirror`), {
+        text,
+        submitted_at: Date.now(),
       });
     } catch (err) {
       Alert.alert('Could not send reflection', readableError(err));
