@@ -20,3 +20,5 @@ export { clearStaleSession } from './sessions/clear-stale-session';
 export { onCheckinWritten } from './sessions/checkins-trigger';
 export { onSpeakerDraftWritten } from './turns/speaker-draft-trigger';
 export { decideTranslation } from './turns/decide-translation';
+export { confirmTurn } from './turns/confirm-turn';
+export { ackFloorSwap } from './turns/ack-floor-swap';

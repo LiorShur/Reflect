@@ -128,6 +128,8 @@ export default function SessionScreen() {
       return (
         <InTurnView sessionId={sessionId} uid={uid} topic={meta.topic ?? ''} />
       );
+    case 'FLOOR_SWAP':
+      return <FloorSwapView sessionId={sessionId} uid={uid} />;
     case 'PAUSED':
       return <PausedView meta={meta} />;
     case 'WRAP_UP':
@@ -479,20 +481,40 @@ function InTurnView({
   }
 
   // Sub-state derivation. Order matters:
-  //   delivered → past compose, listener will mirror (M3d placeholder)
+  //   delivered + mirror present →
+  //     speaker: confirmation; listener: waiting (partner reviewing)
+  //   delivered, no mirror →
+  //     speaker: post-delivery wait; listener: mirror
   //   translation && !approved → translator review (speaker)
   //   committed && !translation → translating spinner (speaker)
   //   else → compose (speaker) / waiting (listener)
   const delivered = turn.delivered?.text;
+  const mirrorText = turn.mirror?.text;
   const translationPending =
     turn.speaker_draft?.committed === true && !turn.translation;
   const reviewing = !!turn.translation && turn.translation.approved !== true;
+
+  if (delivered && mirrorText) {
+    return isSpeaker ? (
+      <SpeakerConfirmationView
+        sessionId={sessionId}
+        deliveredText={delivered}
+        mirrorText={mirrorText}
+      />
+    ) : (
+      <WaitingView label="Your partner is reviewing your reflection." />
+    );
+  }
 
   if (delivered) {
     return isSpeaker ? (
       <SpeakerPostDeliveryView text={delivered} />
     ) : (
-      <ListenerDeliveredPlaceholder text={delivered} />
+      <ListenerMirrorView
+        sessionId={sessionId}
+        deliveredText={delivered}
+        retryHint={turn.retry_hint ?? null}
+      />
     );
   }
 
@@ -806,8 +828,9 @@ function TranslatorReviewView({
   );
 }
 
-// Speaker post-delivery: their message is on the wire; listener will
-// mirror in M3d. Placeholder until that lands.
+// Speaker post-delivery: their message is on the wire and the listener
+// is mirroring it. Calm waiting view, no detail about what the listener
+// is typing.
 function SpeakerPostDeliveryView({ text }: { text: string }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -818,26 +841,328 @@ function SpeakerPostDeliveryView({ text }: { text: string }) {
       <View style={styles.translationBox}>
         <Text style={styles.translationText}>{text}</Text>
       </View>
-      <Text style={styles.helper}>
-        The mirroring + confirmation flow lands in the next milestone.
-      </Text>
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
     </ScrollView>
   );
 }
 
-// Listener placeholder: shows the delivered text. M3d turns this
-// into the proper mirroring screen.
-function ListenerDeliveredPlaceholder({ text }: { text: string }) {
+// C6 — Listener mirror. Two fields: what they said + what they were
+// feeling. On submit, concatenated and written to current_turn/mirror.
+// docs/04 § Listener mirroring + docs/03 mirror schema.
+function ListenerMirrorView({
+  sessionId,
+  deliveredText,
+  retryHint,
+}: {
+  sessionId: string;
+  deliveredText: string;
+  retryHint: string | null;
+}) {
+  const [content, setContent] = useState('');
+  const [feeling, setFeeling] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const trimmedContent = content.trim();
+    const trimmedFeeling = feeling.trim();
+    if (trimmedContent.length === 0 || trimmedFeeling.length === 0) return;
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const text = `${trimmedContent}\n\nIt sounded like you felt: ${trimmedFeeling}`;
+      // mirror is `!data.exists()` per security rules — the write is
+      // a one-shot. retry_hint clears alongside so the speaker's
+      // hint doesn't leak into a future turn.
+      await getDatabase(fb.app)
+        .ref(`sessions/${sessionId}/current_turn`)
+        .update({
+          mirror: { text, submitted_at: Date.now() },
+          retry_hint: null,
+        });
+    } catch (err) {
+      Alert.alert('Could not send reflection', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Your partner says</Text>
-      <View style={styles.translationBox}>
-        <Text style={styles.translationText}>{text}</Text>
-      </View>
-      <Text style={styles.helper}>
-        The mirroring screen lands in the next milestone — for now, read what
-        they said.
+      <Text style={styles.stepLabel}>Your turn to reflect</Text>
+      <Text style={styles.heading}>Reflect back what you heard</Text>
+      <Text style={styles.paragraph}>
+        Just paraphrase — your response comes after they feel heard.
       </Text>
+      {retryHint ? (
+        <View style={styles.warning}>
+          <Text style={styles.warningLabel}>
+            Hint from speaker: {retryHint}
+          </Text>
+        </View>
+      ) : null}
+      <Text style={styles.smallLabel}>They said</Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{deliveredText}</Text>
+      </View>
+      <Text style={styles.smallLabel}>What you heard them say</Text>
+      <TextInput
+        value={content}
+        onChangeText={setContent}
+        placeholder="In your own words…"
+        multiline
+        style={styles.composeInput}
+        editable={!busy}
+        maxLength={1000}
+      />
+      <Text style={styles.smallLabel}>What they were feeling</Text>
+      <TextInput
+        value={feeling}
+        onChangeText={setFeeling}
+        placeholder="A feeling word or two…"
+        multiline
+        style={styles.feelingInput}
+        editable={!busy}
+        maxLength={300}
+      />
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy ||
+            content.trim().length === 0 ||
+            feeling.trim().length === 0) &&
+            styles.disabledButton,
+        ]}
+        disabled={
+          busy || content.trim().length === 0 || feeling.trim().length === 0
+        }
+        onPress={submit}
+      >
+        <Text style={styles.primaryLabel}>
+          {busy ? 'Sending…' : 'Reflect back'}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+// C7 — Speaker confirmation. After the listener mirrors, the speaker
+// indicates whether they felt heard. Four options per docs/04:
+//   Yes / Mostly       → status='heard' (mostly carries optional hint)
+//   Let me say more    → status='more'
+//   Could you try again → status='retry' (carries optional hint)
+function SpeakerConfirmationView({
+  sessionId,
+  deliveredText,
+  mirrorText,
+}: {
+  sessionId: string;
+  deliveredText: string;
+  mirrorText: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [hintField, setHintField] = useState<'mostly' | 'retry' | null>(null);
+  const [hint, setHint] = useState('');
+
+  const confirm = async (
+    status: 'heard' | 'more' | 'retry',
+    hintText?: string,
+  ) => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<
+        { session_id: string; status: string; hint?: string },
+        { ok: true }
+      >(getFunctions(fb.app), 'confirmTurn');
+      await fn({
+        session_id: sessionId,
+        status,
+        hint: hintText && hintText.trim().length > 0 ? hintText : undefined,
+      });
+    } catch (err) {
+      Alert.alert('Could not continue', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.heading}>Did you feel heard?</Text>
+      <Text style={styles.smallLabel}>You said</Text>
+      <View style={[styles.translationBox, styles.translationBoxMuted]}>
+        <Text style={styles.translationText}>{deliveredText}</Text>
+      </View>
+      <Text style={styles.smallLabel}>They reflected</Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{mirrorText}</Text>
+      </View>
+
+      {hintField === null ? (
+        <>
+          <Pressable
+            style={[styles.primaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => confirm('heard')}
+          >
+            <Text style={styles.primaryLabel}>Yes</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => setHintField('mostly')}
+          >
+            <Text style={styles.secondaryLabel}>Mostly</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => confirm('more')}
+          >
+            <Text style={styles.secondaryLabel}>Let me say more</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => setHintField('retry')}
+          >
+            <Text style={styles.secondaryLabel}>Could you try again?</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={styles.smallLabel}>
+            {hintField === 'mostly'
+              ? 'Anything you want to flag (optional)'
+              : 'A hint for them (optional)'}
+          </Text>
+          <TextInput
+            value={hint}
+            onChangeText={setHint}
+            placeholder={
+              hintField === 'mostly'
+                ? "What didn't quite land…"
+                : 'What you wish they had captured…'
+            }
+            multiline
+            style={styles.feelingInput}
+            editable={!busy}
+            maxLength={500}
+          />
+          <Pressable
+            style={[styles.primaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() =>
+              confirm(hintField === 'mostly' ? 'heard' : 'retry', hint)
+            }
+          >
+            <Text style={styles.primaryLabel}>
+              {busy
+                ? 'Sending…'
+                : hintField === 'mostly'
+                  ? 'Move on'
+                  : 'Ask for another try'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => {
+              setHintField(null);
+              setHint('');
+            }}
+          >
+            <Text style={styles.secondaryLabel}>Back</Text>
+          </Pressable>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+// C8 — Floor swap. Both partners see the prior turn's delivered + mirror
+// text and a "Ready" button. Once both have ack'd, server transitions
+// to IN_TURN with roles swapped. The Claude-generated condensation
+// summary lands in M4 alongside the wrap-up summarizer.
+function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
+  const turnView = useCurrentTurn(sessionId);
+  const [busy, setBusy] = useState(false);
+
+  if (!turnView.ready) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  const turn = turnView.turn ?? {};
+  const summary = turn.floor_swap_summary;
+  const alreadyAcked = turn.swap_acks?.[uid] === true;
+  const isNextSpeaker = turn.speaker_uid === uid;
+
+  const ack = async () => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<{ session_id: string }, { ok: true }>(
+        getFunctions(fb.app),
+        'ackFloorSwap',
+      );
+      await fn({ session_id: sessionId });
+    } catch (err) {
+      Alert.alert('Could not continue', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.stepLabel}>Floor swap</Text>
+      <Text style={styles.heading}>
+        {isNextSpeaker ? "It's your turn next" : 'Listening next'}
+      </Text>
+      <Text style={styles.paragraph}>
+        Take a breath before continuing. Here's what just happened:
+      </Text>
+      {summary?.delivered_text ? (
+        <>
+          <Text style={styles.smallLabel}>They said</Text>
+          <View style={[styles.translationBox, styles.translationBoxMuted]}>
+            <Text style={styles.translationText}>{summary.delivered_text}</Text>
+          </View>
+        </>
+      ) : null}
+      {summary?.mirror_text ? (
+        <>
+          <Text style={styles.smallLabel}>You reflected</Text>
+          <View style={styles.translationBox}>
+            <Text style={styles.translationText}>{summary.mirror_text}</Text>
+          </View>
+        </>
+      ) : null}
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy || alreadyAcked) && styles.disabledButton,
+        ]}
+        disabled={busy || alreadyAcked}
+        onPress={ack}
+      >
+        <Text style={styles.primaryLabel}>
+          {alreadyAcked
+            ? 'Waiting for your partner…'
+            : busy
+              ? 'Sending…'
+              : 'Ready to continue'}
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -964,6 +1289,17 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
     borderRadius: 8,
     marginVertical: 16,
+    textAlignVertical: 'top',
+  },
+  feelingInput: {
+    fontSize: 16,
+    lineHeight: 22,
+    minHeight: 80,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    marginBottom: 12,
     textAlignVertical: 'top',
   },
   warning: {
