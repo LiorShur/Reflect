@@ -132,7 +132,7 @@ export default function SessionScreen() {
     case 'FLOOR_SWAP':
       return <FloorSwapView sessionId={sessionId} uid={uid} />;
     case 'PAUSED':
-      return <PausedView meta={meta} />;
+      return <PausedView sessionId={sessionId} uid={uid} meta={meta} />;
     case 'WRAP_UP':
       return (
         <WrapUpView
@@ -399,21 +399,118 @@ function TopicAgreeView({
   );
 }
 
-// PAUSED
-function PausedView({ meta }: { meta: SessionMeta }) {
-  const remainingMs = (meta.paused_until ?? 0) - Date.now();
-  const minutes = Math.max(0, Math.ceil(remainingMs / 60_000));
+// PAUSED. Live countdown to meta.paused_until + per-partner "Continue
+// session" ack. While timer is running the resume button is disabled;
+// after it hits zero, either partner can tap Continue. Both must tap
+// before the server transitions back to state_before_pause. A small
+// "Skip the wait" override lets the pair bypass the timer (with
+// confirmation) per docs/04 § Pause/cooldown.
+function PausedView({
+  sessionId,
+  uid,
+  meta,
+}: {
+  sessionId: string;
+  uid: string;
+  meta: SessionMeta;
+}) {
+  const [now, setNow] = useState(Date.now());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const pausedUntil = meta.paused_until ?? 0;
+  const remainingMs = Math.max(0, pausedUntil - now);
+  const timerExpired = remainingMs === 0;
+  const minutes = Math.floor(remainingMs / 60_000);
+  const seconds = Math.floor((remainingMs % 60_000) / 1000);
+  const countdownText = `${minutes}:${String(seconds).padStart(2, '0')}`;
+
+  const selfAcked = meta.resume_acks?.[uid] === true;
+  const otherUid = meta.partnerA === uid ? meta.partnerB : meta.partnerA;
+  const partnerAcked = otherUid ? meta.resume_acks?.[otherUid] === true : false;
+
+  const callResume = async () => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<{ session_id: string }, { ok: true }>(
+        getFunctions(fb.app),
+        'resumeFromPause',
+      );
+      await fn({ session_id: sessionId });
+    } catch (err) {
+      Alert.alert('Could not resume', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onContinue = () => {
+    if (selfAcked) return;
+    void callResume();
+  };
+
+  const onSkipWait = () => {
+    if (selfAcked) return;
+    Alert.alert(
+      'Skip the wait?',
+      'The 20-minute window helps the body settle. Both of you would need to tap continue to resume early.',
+      [
+        { text: 'Keep waiting', style: 'cancel' },
+        { text: "I'm ready now", onPress: () => void callResume() },
+      ],
+    );
+  };
+
   return (
-    <View style={styles.center}>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.stepLabel}>Cooldown</Text>
       <Text style={styles.heading}>Take a breather</Text>
       <Text style={styles.paragraph}>
-        Based on the check-in, the session is paused for about {minutes} minute
-        {minutes === 1 ? '' : 's'}. You can come back when you’re both ready.
+        The session is paused. Twenty minutes lets the body settle so you both
+        come back grounded.
       </Text>
-      {meta.pause_reason ? (
+      <View style={styles.timerBox}>
+        <Text style={styles.timerLabel}>
+          {timerExpired ? 'Ready when you both are' : countdownText}
+        </Text>
+      </View>
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy || selfAcked || !timerExpired) && styles.disabledButton,
+        ]}
+        disabled={busy || selfAcked || !timerExpired}
+        onPress={onContinue}
+      >
+        <Text style={styles.primaryLabel}>
+          {selfAcked
+            ? partnerAcked
+              ? 'Resuming…'
+              : 'Waiting for your partner'
+            : busy
+              ? 'Sending…'
+              : 'Continue session'}
+        </Text>
+      </Pressable>
+      {!timerExpired && !selfAcked ? (
+        <Pressable
+          style={[styles.secondaryButton, busy && styles.disabledButton]}
+          disabled={busy}
+          onPress={onSkipWait}
+        >
+          <Text style={styles.secondaryLabel}>Skip the wait</Text>
+        </Pressable>
+      ) : null}
+      {meta.pause_reason && meta.pause_reason !== 'manual_break' ? (
         <Text style={styles.helper}>Reason: {meta.pause_reason}</Text>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -433,6 +530,55 @@ function WaitingView({ label }: { label: string }) {
       <ActivityIndicator />
       <Text style={[styles.paragraph, { marginTop: 16 }]}>{label}</Text>
     </View>
+  );
+}
+
+// Shared "I need a break" affordance for active conversation screens.
+// Confirms before pausing because pausing mid-conversation is a heavy
+// action that affects both partners. Calls requestPause; the resulting
+// PAUSED state transition shows up via the meta listener so the screen
+// flips to PausedView automatically.
+function BreakButton({ sessionId }: { sessionId: string }) {
+  const [busy, setBusy] = useState(false);
+
+  const requestPause = async () => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<{ session_id: string }, { ok: true }>(
+        getFunctions(fb.app),
+        'requestPause',
+      );
+      await fn({ session_id: sessionId });
+    } catch (err) {
+      Alert.alert('Could not pause', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPress = () => {
+    Alert.alert(
+      'Take a break?',
+      "We'll pause the session for 20 minutes. Both of you will need to tap continue to come back.",
+      [
+        { text: 'Keep going', style: 'cancel' },
+        { text: 'Pause for 20 min', onPress: () => void requestPause() },
+      ],
+    );
+  };
+
+  return (
+    <Pressable
+      style={[styles.subtleButton, busy && styles.disabledButton]}
+      disabled={busy}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="I need a break"
+    >
+      <Text style={styles.subtleLabel}>I need a break</Text>
+    </Pressable>
   );
 }
 
@@ -632,6 +778,7 @@ function ComposeView({
           {busy ? 'Sending…' : 'Continue'}
         </Text>
       </Pressable>
+      <BreakButton sessionId={sessionId} />
     </ScrollView>
   );
 }
@@ -949,6 +1096,7 @@ function ListenerMirrorView({
           {busy ? 'Sending…' : 'Reflect back'}
         </Text>
       </Pressable>
+      <BreakButton sessionId={sessionId} />
     </ScrollView>
   );
 }
@@ -1085,6 +1233,7 @@ function SpeakerConfirmationView({
           </Pressable>
         </>
       )}
+      <BreakButton sessionId={sessionId} />
     </ScrollView>
   );
 }
@@ -1188,6 +1337,7 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
             : 'End the session'}
         </Text>
       </Pressable>
+      <BreakButton sessionId={sessionId} />
     </ScrollView>
   );
 }
@@ -1433,6 +1583,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   secondaryLabel: { fontSize: 16 },
+  subtleButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  subtleLabel: { fontSize: 14, color: '#64748b' },
+  timerBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  timerLabel: {
+    fontSize: 48,
+    fontWeight: '300',
+    color: '#0f172a',
+    fontVariant: ['tabular-nums'],
+  },
   disabledButton: { opacity: 0.4 },
   composeInput: {
     fontSize: 16,

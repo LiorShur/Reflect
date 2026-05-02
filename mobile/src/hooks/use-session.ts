@@ -22,6 +22,9 @@ export interface SessionMeta {
   topic?: string;
   paused_until?: number;
   pause_reason?: string;
+  pause_requested_by?: string;
+  state_before_pause?: SessionState;
+  resume_acks?: Record<string, boolean>;
   // Set by the orchestrator while in CHECK_IN so each client can
   // render a partner-aware ready/waiting view without reading the
   // other partner's checkin record.
