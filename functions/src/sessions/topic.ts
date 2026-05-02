@@ -2,6 +2,7 @@ import { getDatabase } from 'firebase-admin/database';
 import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { scoreFastPath } from '../moderator/score';
 import type { SessionState } from '../orchestrator/state-machine';
 import { canProposeTopic, canRespondToTopic } from './session-utils';
 
@@ -88,6 +89,24 @@ export const proposeTopic = onCall<ProposeTopicRequest, Promise<{ ok: true }>>(
       throw new HttpsError(
         'failed-precondition',
         `Cannot propose a topic from state ${meta.state}.`,
+      );
+    }
+
+    // Light moderation on the topic itself: only the worst framings
+    // (tier_3: name-calling, contempt phrases) are blocked. Tier_1/2
+    // pass through because the responding partner has accept/reframe
+    // as a built-in correction loop. The compose-stage moderator/
+    // translator does the heavier lift on actual statements.
+    const modResult = scoreFastPath(topic);
+    if (modResult.tier === 'tier_3') {
+      logger.info('proposeTopic blocked tier_3', {
+        session_id: sessionId,
+        score: modResult.score,
+        flag_count: modResult.flags.length,
+      });
+      throw new HttpsError(
+        'failed-precondition',
+        "That framing might land hard. Try naming what you'd like to talk about, not what your partner is doing wrong.",
       );
     }
 
