@@ -21,6 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { tryInitFirebase } from '../firebase';
 import { useAuthState, type AuthState } from '../hooks/use-auth-state';
+import { useCurrentTurn, type CurrentTurn } from '../hooks/use-current-turn';
 import { useSession, type SessionMeta } from '../hooks/use-session';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -117,12 +118,7 @@ export default function SessionScreen() {
         <TopicAgreeView sessionId={sessionId} topic={meta.topic ?? ''} />
       );
     case 'IN_TURN':
-      return (
-        <PlaceholderView
-          title="In session"
-          body="The speaker-listener loop screens land in the next milestone."
-        />
-      );
+      return <InTurnView sessionId={sessionId} uid={uid} />;
     case 'PAUSED':
       return <PausedView meta={meta} />;
     case 'WRAP_UP':
@@ -429,6 +425,307 @@ function readableError(err: unknown): string {
   return String(err);
 }
 
+// IN_TURN router. Routes by speaker/listener role + sub-state derived
+// from current_turn (speaker_draft, translation, delivered).
+function InTurnView({ sessionId, uid }: { sessionId: string; uid: string }) {
+  const turnView = useCurrentTurn(sessionId);
+
+  if (!turnView.ready) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  const turn = turnView.turn ?? {};
+  const isSpeaker = turn.speaker_uid === uid;
+  const isListener = turn.listener_uid === uid;
+
+  if (!isSpeaker && !isListener) {
+    return (
+      <PlaceholderView
+        title="Joining…"
+        body="Waiting for the session to assign roles."
+      />
+    );
+  }
+
+  // Sub-state derivation. Order matters:
+  //   delivered → past compose, listener will mirror (M3d placeholder)
+  //   translation && !approved → translator review (speaker)
+  //   committed && !translation → translating spinner (speaker)
+  //   else → compose (speaker) / waiting (listener)
+  const delivered = turn.delivered?.text;
+  const translationPending =
+    turn.speaker_draft?.committed === true && !turn.translation;
+  const reviewing = !!turn.translation && turn.translation.approved !== true;
+
+  if (delivered) {
+    return isSpeaker ? (
+      <SpeakerPostDeliveryView text={delivered} />
+    ) : (
+      <ListenerDeliveredPlaceholder text={delivered} />
+    );
+  }
+
+  if (isSpeaker) {
+    if (reviewing) {
+      return (
+        <TranslatorReviewView
+          sessionId={sessionId}
+          translation={turn.translation!}
+          rawText={turn.speaker_draft?.raw ?? ''}
+        />
+      );
+    }
+    if (translationPending) {
+      return (
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={[styles.paragraph, { marginTop: 16 }]}>
+            Reviewing your message…
+          </Text>
+        </View>
+      );
+    }
+    return (
+      <ComposeView
+        sessionId={sessionId}
+        initialText={turn.speaker_draft?.raw ?? ''}
+        moderatorWarning={null}
+      />
+    );
+  }
+
+  // Listener side. Until delivered exists, just show a calm waiting
+  // indicator — no detail leaks about composition activity beyond
+  // the fact that the partner is composing.
+  return <WaitingView label="Your partner is composing. Hang tight." />;
+}
+
+function ComposeView({
+  sessionId,
+  initialText,
+  moderatorWarning,
+}: {
+  sessionId: string;
+  initialText: string;
+  moderatorWarning: string | null;
+}) {
+  const [text, setText] = useState(initialText);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const db = getDatabase(fb.app);
+      // Single atomic write of raw + committed so the trigger sees
+      // both fields together.
+      await set(ref(db, `sessions/${sessionId}/current_turn/speaker_draft`), {
+        raw: trimmed,
+        committed: true,
+        submitted_at: Date.now(),
+      });
+    } catch (err) {
+      Alert.alert('Could not send', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.heading}>Your turn</Text>
+      <Text style={styles.paragraph}>
+        Say what's on your mind. We'll suggest a softened version before your
+        partner sees it — you decide what to send.
+      </Text>
+      {moderatorWarning ? (
+        <View style={styles.warning}>
+          <Text style={styles.warningLabel}>{moderatorWarning}</Text>
+        </View>
+      ) : null}
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder="What's on your mind…"
+        multiline
+        style={styles.composeInput}
+        editable={!busy}
+        maxLength={2000}
+      />
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy || text.trim().length === 0) && styles.disabledButton,
+        ]}
+        disabled={busy || text.trim().length === 0}
+        onPress={submit}
+      >
+        <Text style={styles.primaryLabel}>
+          {busy ? 'Sending…' : 'Continue'}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+function TranslatorReviewView({
+  sessionId,
+  translation,
+  rawText,
+}: {
+  sessionId: string;
+  translation: NonNullable<CurrentTurn['translation']>;
+  rawText: string;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const decide = async (
+    decision: 'send_softened' | 'send_original' | 'edit',
+  ) => {
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<
+        { session_id: string; decision: string },
+        { ok: true }
+      >(getFunctions(fb.app), 'decideTranslation');
+      await fn({ session_id: sessionId, decision });
+    } catch (err) {
+      Alert.alert('Could not continue', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // If the translator says it's already softened, skip the comparison
+  // — the speaker doesn't need to choose between two near-identical
+  // strings. Single primary "Send" button.
+  if (translation.already_soft) {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.heading}>Looks good as-is</Text>
+        <Text style={styles.paragraph}>
+          Your message is already in the form we'd suggest.
+        </Text>
+        <View style={styles.translationBox}>
+          <Text style={styles.translationText}>{rawText}</Text>
+        </View>
+        <Pressable
+          style={[styles.primaryButton, busy && styles.disabledButton]}
+          disabled={busy}
+          onPress={() => decide('send_original')}
+        >
+          <Text style={styles.primaryLabel}>
+            {busy ? 'Sending…' : 'Send to partner'}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.secondaryButton, busy && styles.disabledButton]}
+          disabled={busy}
+          onPress={() => decide('edit')}
+        >
+          <Text style={styles.secondaryLabel}>Edit first</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.heading}>Suggested wording</Text>
+      {translation.cannot_soften ? (
+        <Text style={styles.paragraph}>
+          {translation.changes_made ||
+            "We couldn't generate a softened version. You can still send the original."}
+        </Text>
+      ) : null}
+
+      <Text style={styles.smallLabel}>Suggested</Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{translation.softened}</Text>
+      </View>
+
+      <Text style={styles.smallLabel}>Your original</Text>
+      <View style={[styles.translationBox, styles.translationBoxMuted]}>
+        <Text style={styles.translationText}>{rawText}</Text>
+      </View>
+
+      {translation.changes_made && !translation.cannot_soften ? (
+        <Text style={styles.helper}>{translation.changes_made}</Text>
+      ) : null}
+
+      <Pressable
+        style={[
+          styles.primaryButton,
+          (busy || translation.cannot_soften) && styles.disabledButton,
+        ]}
+        disabled={busy || translation.cannot_soften === true}
+        onPress={() => decide('send_softened')}
+      >
+        <Text style={styles.primaryLabel}>Send suggested</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.secondaryButton, busy && styles.disabledButton]}
+        disabled={busy}
+        onPress={() => decide('edit')}
+      >
+        <Text style={styles.secondaryLabel}>Edit</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.secondaryButton, busy && styles.disabledButton]}
+        disabled={busy}
+        onPress={() => decide('send_original')}
+      >
+        <Text style={styles.secondaryLabel}>Send original</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+// Speaker post-delivery: their message is on the wire; listener will
+// mirror in M3d. Placeholder until that lands.
+function SpeakerPostDeliveryView({ text }: { text: string }) {
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.heading}>Sent</Text>
+      <Text style={styles.paragraph}>
+        Your partner is reflecting on your message.
+      </Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{text}</Text>
+      </View>
+      <Text style={styles.helper}>
+        The mirroring + confirmation flow lands in the next milestone.
+      </Text>
+    </ScrollView>
+  );
+}
+
+// Listener placeholder: shows the delivered text. M3d turns this
+// into the proper mirroring screen.
+function ListenerDeliveredPlaceholder({ text }: { text: string }) {
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.heading}>Your partner says</Text>
+      <View style={styles.translationBox}>
+        <Text style={styles.translationText}>{text}</Text>
+      </View>
+      <Text style={styles.helper}>
+        The mirroring screen lands in the next milestone — for now, read what
+        they said.
+      </Text>
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { padding: 24 },
   center: {
@@ -516,4 +813,39 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: { fontSize: 16 },
   disabledButton: { opacity: 0.4 },
+  composeInput: {
+    fontSize: 16,
+    lineHeight: 22,
+    minHeight: 140,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    marginVertical: 16,
+    textAlignVertical: 'top',
+  },
+  warning: {
+    padding: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  warningLabel: { color: '#854d0e', fontSize: 14 },
+  smallLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  translationBox: {
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 8,
+  },
+  translationBoxMuted: { backgroundColor: '#f8fafc', opacity: 0.85 },
+  translationText: { fontSize: 16, lineHeight: 24 },
 });

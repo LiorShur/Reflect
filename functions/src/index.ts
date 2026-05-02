@@ -18,3 +18,5 @@ export { createSession } from './sessions/create-session';
 export { proposeTopic, acceptTopic, reframeTopic } from './sessions/topic';
 export { clearStaleSession } from './sessions/clear-stale-session';
 export { onCheckinWritten } from './sessions/checkins-trigger';
+export { onSpeakerDraftWritten } from './turns/speaker-draft-trigger';
+export { decideTranslation } from './turns/decide-translation';
