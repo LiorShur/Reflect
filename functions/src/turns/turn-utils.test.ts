@@ -2,6 +2,8 @@ import {
   isValidConfirmStatus,
   isValidDecision,
   isValidDraftText,
+  moderatorTierString,
+  parseModeratorEscalationOutput,
   parseTranslatorOutput,
   planConfirmDecision,
 } from './turn-utils';
@@ -160,5 +162,83 @@ describe('planConfirmDecision', () => {
       swapRoles: false,
       clearMirrorOnly: true,
     });
+  });
+});
+
+describe('parseModeratorEscalationOutput', () => {
+  const valid = {
+    tier: 2,
+    reason: 'Likely to put the partner on the defensive.',
+    suggestion: "Try 'I felt overlooked when…' instead.",
+  };
+
+  it('parses a clean tier-2 response', () => {
+    expect(parseModeratorEscalationOutput(JSON.stringify(valid))).toEqual(
+      valid,
+    );
+  });
+
+  it('accepts tier 1 with null suggestion', () => {
+    const t1 = { tier: 1, reason: 'Fine to send.', suggestion: null };
+    expect(parseModeratorEscalationOutput(JSON.stringify(t1))).toEqual(t1);
+  });
+
+  it('accepts tier 3', () => {
+    const t3 = {
+      tier: 3,
+      reason: 'Contains contempt.',
+      suggestion: 'Refocus on what you need.',
+    };
+    expect(parseModeratorEscalationOutput(JSON.stringify(t3))).toEqual(t3);
+  });
+
+  it('strips a ```json code fence', () => {
+    const wrapped = '```json\n' + JSON.stringify(valid) + '\n```';
+    expect(parseModeratorEscalationOutput(wrapped)).toEqual(valid);
+  });
+
+  it('throws on invalid JSON', () => {
+    expect(() => parseModeratorEscalationOutput('not json')).toThrow(
+      /valid JSON/,
+    );
+  });
+
+  it('throws on non-object JSON', () => {
+    expect(() => parseModeratorEscalationOutput('"a string"')).toThrow(
+      /non-object/,
+    );
+    expect(() => parseModeratorEscalationOutput('[1, 2, 3]')).toThrow(
+      /non-object/,
+    );
+  });
+
+  it.each([0, 4, '2', null, undefined])('throws on invalid tier %p', (t) => {
+    const broken = { ...valid, tier: t };
+    expect(() =>
+      parseModeratorEscalationOutput(JSON.stringify(broken)),
+    ).toThrow(/tier/);
+  });
+
+  it('throws on missing reason', () => {
+    const broken = { ...valid } as Record<string, unknown>;
+    delete broken.reason;
+    expect(() =>
+      parseModeratorEscalationOutput(JSON.stringify(broken)),
+    ).toThrow(/reason/);
+  });
+
+  it('throws on non-string non-null suggestion', () => {
+    const broken = { ...valid, suggestion: 42 };
+    expect(() =>
+      parseModeratorEscalationOutput(JSON.stringify(broken)),
+    ).toThrow(/suggestion/);
+  });
+});
+
+describe('moderatorTierString', () => {
+  it('maps numeric tiers to strings', () => {
+    expect(moderatorTierString(1)).toBe('tier_1');
+    expect(moderatorTierString(2)).toBe('tier_2');
+    expect(moderatorTierString(3)).toBe('tier_3');
   });
 });

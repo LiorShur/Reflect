@@ -5,7 +5,13 @@ import { onValueWritten } from 'firebase-functions/v2/database';
 import { ANTHROPIC_API_KEY, callClaude } from '../anthropic/client';
 import { scoreFastPath } from '../moderator/score';
 import { trace } from '../telemetry/trace';
-import { isValidDraftText, parseTranslatorOutput } from './turn-utils';
+import {
+  isValidDraftText,
+  moderatorTierString,
+  parseModeratorEscalationOutput,
+  parseTranslatorOutput,
+  type ModeratorEscalationOutput,
+} from './turn-utils';
 
 interface SpeakerDraft {
   raw?: string;
@@ -80,27 +86,86 @@ export const onSpeakerDraftWritten = onValueWritten(
     // 1. Moderator fast-path
     const modResult = scoreFastPath(rawText);
 
-    if (modResult.tier === 'tier_3') {
+    // 2. Moderator escalation (AI2). Only fires on fast-path tier_2;
+    // fast-path tier_3 is deterministic (clear contempt patterns) so
+    // we don't ask Claude to second-guess. tier_1 / clean go straight
+    // to the translator.
+    let finalTier: 'clean' | 'tier_1' | 'tier_2' | 'tier_3' = modResult.tier;
+    let escalation: ModeratorEscalationOutput | null = null;
+    let escalationVersion = 'n/a';
+    let escalationCost = 0;
+    if (modResult.tier === 'tier_2') {
+      const escTStart = Date.now();
+      try {
+        const histSnap = await db.ref(`sessions/${sessionId}/history`).get();
+        const turnCount = histSnap.exists()
+          ? Object.keys(histSnap.val() ?? {}).length
+          : 0;
+        const escResp = await callClaude({
+          prompt_role: 'moderator_escalation',
+          inputs: {
+            RAW_MESSAGE: rawText,
+            FLAGS: JSON.stringify(modResult.flags.map((f) => f.type)),
+            TURN_COUNT: turnCount,
+          },
+        });
+        escalationVersion = escResp.prompt_version;
+        escalationCost = escResp.cost_usd;
+        escalation = parseModeratorEscalationOutput(escResp.text);
+        finalTier = moderatorTierString(escalation.tier);
+        logger.info('moderator escalation applied', {
+          session_id: sessionId,
+          fastpath_tier: modResult.tier,
+          final_tier: finalTier,
+        });
+      } catch (err) {
+        // Fail-soft: fall back to fast-path tier_2. The translator
+        // still runs and the speaker still sees a (generic) banner.
+        logger.warn('moderator escalation failed; falling back to fast-path', {
+          session_id: sessionId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      void trace({
+        prompt_role: 'moderator_escalation',
+        prompt_version: escalationVersion,
+        model: 'claude-sonnet-4-5',
+        input_text: rawText,
+        output_text: escalation
+          ? `tier=${escalation.tier}; ${escalation.reason}`
+          : '(failed)',
+        latency_ms: Date.now() - escTStart,
+        cost_usd: escalationCost,
+        session_id: sessionId,
+      }).catch(() => {});
+    }
+
+    if (finalTier === 'tier_3') {
       // Hard block per docs/10. Revert commit so speaker returns to
-      // compose, write a flag for the UI to surface a soft warning.
+      // compose, write a flag with the escalation reason/suggestion
+      // when available so the compose-side warning is specific.
       await db.ref(`sessions/${sessionId}/flags`).push({
         type: 'harsh_startup',
         severity: 3,
         target_uid: currentTurn.speaker_uid ?? null,
         created_at: Date.now(),
         moderator_flags: modResult.flags,
+        reason: escalation?.reason ?? null,
+        suggestion: escalation?.suggestion ?? null,
+        escalated: escalation !== null,
       });
       await revertCommit(sessionId);
       logger.info('speaker-draft tier_3 blocked', {
         session_id: sessionId,
-        score: modResult.score,
-        flag_count: modResult.flags.length,
+        fastpath_tier: modResult.tier,
+        final_tier: finalTier,
+        escalated: escalation !== null,
       });
       return;
     }
 
-    // 2. Translator (Claude). For M3c, tier_2 needs_escalation is
-    // treated like tier_1 — the actual escalation prompt lands in M3e.
+    // 3. Translator (Claude). finalTier (post-escalation) drives the
+    // banner the speaker sees on the review screen.
     let translatorResult: ReturnType<typeof translatorResultShape>;
     let promptVersion = 'unknown';
     let costUsd = 0;
@@ -136,8 +201,11 @@ export const onSpeakerDraftWritten = onValueWritten(
     await db.ref(`sessions/${sessionId}/current_turn/translation`).set({
       ...translatorResult,
       prompt_version: promptVersion,
-      moderator_tier: modResult.tier,
+      moderator_tier: finalTier,
+      moderator_fastpath_tier: modResult.tier,
       moderator_flags: modResult.flags,
+      moderator_suggestion: escalation?.suggestion ?? null,
+      moderator_reason: escalation?.reason ?? null,
       approved: false,
     });
 

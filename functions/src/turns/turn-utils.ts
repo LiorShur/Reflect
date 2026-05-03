@@ -76,6 +76,71 @@ export function isValidDecision(value: unknown): value is TranslationDecision {
   );
 }
 
+// AI2 — Moderator escalation. Called when the fast-path returns
+// tier_2 with needs_escalation. Claude reads the message in context
+// and assigns a final tier (1 / 2 / 3) plus an optional rewrite hint.
+//
+// docs/05 § Moderator (escalation) + prompts/moderator-escalation.yaml.
+export interface ModeratorEscalationOutput {
+  tier: 1 | 2 | 3;
+  reason: string;
+  // null is allowed when the escalation says tier 1 — no rewrite
+  // needed. The Claude prompt explicitly says "or null if tier 1".
+  suggestion: string | null;
+}
+
+export function parseModeratorEscalationOutput(
+  raw: string,
+): ModeratorEscalationOutput {
+  const stripped = stripCodeFence(raw).trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch (e) {
+    throw new Error(
+      `Moderator escalation did not return valid JSON: ${
+        e instanceof Error ? e.message : String(e)
+      }. Got: ${stripped.slice(0, 80)}`,
+    );
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(
+      `Moderator escalation returned non-object: ${typeof parsed}`,
+    );
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (obj.tier !== 1 && obj.tier !== 2 && obj.tier !== 3) {
+    throw new Error(
+      `Moderator escalation 'tier' must be 1, 2, or 3; got: ${String(obj.tier)}`,
+    );
+  }
+  if (typeof obj.reason !== 'string') {
+    throw new Error("Moderator escalation output missing 'reason' string");
+  }
+  let suggestion: string | null;
+  if (obj.suggestion === null) {
+    suggestion = null;
+  } else if (typeof obj.suggestion === 'string') {
+    suggestion = obj.suggestion;
+  } else {
+    throw new Error(
+      "Moderator escalation 'suggestion' must be a string or null",
+    );
+  }
+  return { tier: obj.tier, reason: obj.reason, suggestion };
+}
+
+// Maps the numeric tier from the escalation response to the string
+// the rest of the pipeline (translation.moderator_tier, fast-path
+// FastPathResult['tier']) uses.
+export function moderatorTierString(
+  numeric: 1 | 2 | 3,
+): 'tier_1' | 'tier_2' | 'tier_3' {
+  if (numeric === 3) return 'tier_3';
+  if (numeric === 2) return 'tier_2';
+  return 'tier_1';
+}
+
 // Speaker's confirmation after seeing the listener's mirror.
 // docs/04 § Speaker confirmation:
 //   yes / mostly → archive + role swap → FLOOR_SWAP
