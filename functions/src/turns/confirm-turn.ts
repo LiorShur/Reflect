@@ -152,7 +152,9 @@ export const confirmTurn = onCall<
   if (plan.newState === 'FLOOR_SWAP') {
     // Reset current_turn entirely with swapped roles. Stub summary is
     // the literal delivered + mirror text; M4 will replace with a
-    // Claude-generated condensation.
+    // Claude-generated condensation. speaker_draft / listener_draft
+    // are session-level siblings (post-D3 rules refactor) — clear
+    // them explicitly so the next turn starts fresh.
     update['meta/state'] = 'FLOOR_SWAP';
     update['current_turn'] = {
       speaker_uid: listenerUid,
@@ -166,22 +168,27 @@ export const confirmTurn = onCall<
       },
       swap_acks: null,
     };
+    update['speaker_draft'] = null;
+    update['listener_draft'] = null;
   } else if (plan.clearMirrorOnly) {
     // 'retry' — listener re-mirrors. Preserve delivered + speaker_uid +
     // listener_uid; clear mirror, listener_draft, and any prior
     // confirmation. Optional hint surfaces in the listener's UI.
+    // listener_draft now lives at the session level (post-D3 rules
+    // refactor) so the listener can keep it private.
     update['current_turn/mirror'] = null;
-    update['current_turn/listener_draft'] = null;
+    update['listener_draft'] = null;
     update['current_turn/speaker_confirmation'] = null;
     update['current_turn/retry_hint'] = hint ?? null;
   } else {
     // 'more' — same speaker keeps floor with a fresh compose. Clear
     // everything turn-content-shaped; preserve speaker_uid /
-    // listener_uid.
-    update['current_turn/speaker_draft'] = null;
+    // listener_uid. speaker_draft / listener_draft are session-level
+    // siblings of current_turn (post-D3 rules refactor).
+    update['speaker_draft'] = null;
+    update['listener_draft'] = null;
     update['current_turn/translation'] = null;
     update['current_turn/delivered'] = null;
-    update['current_turn/listener_draft'] = null;
     update['current_turn/mirror'] = null;
     update['current_turn/speaker_confirmation'] = null;
     update['current_turn/retry_hint'] = null;

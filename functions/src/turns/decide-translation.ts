@@ -11,8 +11,12 @@ interface DecideTranslationRequest {
 
 interface CurrentTurn {
   speaker_uid?: string;
-  speaker_draft?: { raw?: string; committed?: boolean };
   translation?: { softened?: string; approved?: boolean };
+}
+
+interface SpeakerDraft {
+  raw?: string;
+  committed?: boolean;
 }
 
 // Speaker decides what to do with the translator's output:
@@ -20,6 +24,9 @@ interface CurrentTurn {
 //   'send_original' → speaker_draft.raw becomes delivered.text
 //   'edit'          → translation cleared, speaker_draft.committed
 //                     reset to false so speaker returns to compose
+//
+// speaker_draft lives at the session level (sibling of current_turn)
+// post-D3 rules refactor — security rules can keep it private.
 //
 // docs/05 § Translator and the speaker-autonomy principle in
 // docs/01: the speaker has final authority over their own words.
@@ -46,11 +53,15 @@ export const decideTranslation = onCall<
   }
 
   const db = getDatabase();
-  const turnSnap = await db.ref(`sessions/${sessionId}/current_turn`).get();
+  const [turnSnap, draftSnap] = await Promise.all([
+    db.ref(`sessions/${sessionId}/current_turn`).get(),
+    db.ref(`sessions/${sessionId}/speaker_draft`).get(),
+  ]);
   if (!turnSnap.exists()) {
     throw new HttpsError('not-found', 'Session has no current turn.');
   }
   const turn = (turnSnap.val() as CurrentTurn | null) ?? {};
+  const draft = (draftSnap.val() as SpeakerDraft | null) ?? {};
 
   if (turn.speaker_uid !== uid) {
     throw new HttpsError(
@@ -68,12 +79,13 @@ export const decideTranslation = onCall<
     );
   }
 
-  return await applyDecision(sessionId, turn, decision);
+  return await applyDecision(sessionId, turn, draft, decision);
 });
 
 async function applyDecision(
   sessionId: string,
   turn: CurrentTurn,
+  draft: SpeakerDraft,
   decision: TranslationDecision,
 ): Promise<{ ok: true }> {
   const db = getDatabase();
@@ -81,8 +93,10 @@ async function applyDecision(
 
   if (decision === 'edit') {
     // Clear translation + revert commit. Speaker UI returns to compose.
-    await db.ref(`sessions/${sessionId}/current_turn`).update({
-      translation: null,
+    // speaker_draft lives at the session level now (sibling of
+    // current_turn) so use a multi-path update spanning both.
+    await db.ref(`sessions/${sessionId}`).update({
+      'current_turn/translation': null,
       'speaker_draft/committed': false,
     });
     logger.info('decideTranslation: edit', { session_id: sessionId });
@@ -90,9 +104,7 @@ async function applyDecision(
   }
 
   const text =
-    decision === 'send_softened'
-      ? turn.translation?.softened
-      : turn.speaker_draft?.raw;
+    decision === 'send_softened' ? turn.translation?.softened : draft.raw;
 
   if (typeof text !== 'string' || text.trim().length === 0) {
     throw new HttpsError(

@@ -30,6 +30,7 @@ import { tryInitFirebase } from '../firebase';
 import { useAuthState, type AuthState } from '../hooks/use-auth-state';
 import { useCurrentTurn, type CurrentTurn } from '../hooks/use-current-turn';
 import { useSession, type SessionMeta } from '../hooks/use-session';
+import { useSpeakerDraft } from '../hooks/use-speaker-draft';
 import { useSummary } from '../hooks/use-summary';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -606,8 +607,13 @@ function InTurnView({
       ? (turnView.turn.speaker_uid ?? null)
       : null;
   const latestFlag = useLatestSpeakerFlag(sessionId, speakerUid);
+  // The speaker_draft path is role-private. Subscribe only when the
+  // current user IS the speaker; the listener gets a permission-denied
+  // read otherwise.
+  const isCurrentSpeaker = speakerUid !== null && speakerUid === uid;
+  const speakerDraftView = useSpeakerDraft(sessionId, isCurrentSpeaker);
 
-  if (!turnView.ready) {
+  if (!turnView.ready || !speakerDraftView.ready) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
@@ -616,6 +622,7 @@ function InTurnView({
   }
 
   const turn = turnView.turn ?? {};
+  const speakerDraft = speakerDraftView.draft ?? {};
   const isSpeaker = turn.speaker_uid === uid;
   const isListener = turn.listener_uid === uid;
 
@@ -639,7 +646,7 @@ function InTurnView({
   const delivered = turn.delivered?.text;
   const mirrorText = turn.mirror?.text;
   const translationPending =
-    turn.speaker_draft?.committed === true && !turn.translation;
+    speakerDraft.committed === true && !turn.translation;
   const reviewing = !!turn.translation && turn.translation.approved !== true;
 
   if (delivered && mirrorText) {
@@ -672,7 +679,7 @@ function InTurnView({
         <TranslatorReviewView
           sessionId={sessionId}
           translation={turn.translation!}
-          rawText={turn.speaker_draft?.raw ?? ''}
+          rawText={speakerDraft.raw ?? ''}
         />
       );
     }
@@ -690,7 +697,7 @@ function InTurnView({
       <ComposeView
         sessionId={sessionId}
         topic={topic}
-        initialText={turn.speaker_draft?.raw ?? ''}
+        initialText={speakerDraft.raw ?? ''}
         moderatorWarning={deriveSpeakerWarning(latestFlag)}
       />
     );
@@ -726,7 +733,10 @@ function ComposeView({
       const db = getDatabase(fb.app);
       // Single atomic write of raw + committed so the trigger sees
       // both fields together.
-      await set(ref(db, `sessions/${sessionId}/current_turn/speaker_draft`), {
+      // speaker_draft lives at /sessions/{sid}/speaker_draft (sibling of
+      // current_turn) so the security rules can keep it private to the
+      // speaker. See firebase/database.rules.json (D3 rules refactor).
+      await set(ref(db, `sessions/${sessionId}/speaker_draft`), {
         raw: trimmed,
         committed: true,
         submitted_at: Date.now(),
