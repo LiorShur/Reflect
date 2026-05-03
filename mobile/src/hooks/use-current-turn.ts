@@ -15,6 +15,12 @@ export interface Translation {
   approved?: boolean;
   prompt_version?: string;
   moderator_tier?: 'clean' | 'tier_1' | 'tier_2' | 'tier_3';
+  // Fast-path tier (pre-escalation) — kept for telemetry / debugging.
+  moderator_fastpath_tier?: 'clean' | 'tier_1' | 'tier_2' | 'tier_3';
+  // AI2 — Claude's specific rewrite hint when the escalation lands
+  // tier_2 / tier_3. null when not escalated or escalation said tier_1.
+  moderator_suggestion?: string | null;
+  moderator_reason?: string | null;
 }
 
 export interface SpeakerDraft {

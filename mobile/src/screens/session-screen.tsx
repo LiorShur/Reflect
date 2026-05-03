@@ -641,6 +641,11 @@ interface ModeratorFlag {
   severity?: number;
   target_uid?: string | null;
   created_at?: number;
+  // AI2 — populated when the fast-path tier_2 was escalated and Claude
+  // returned tier_3. Lets the compose-side warning be specific.
+  reason?: string | null;
+  suggestion?: string | null;
+  escalated?: boolean;
 }
 
 // Subscribes to /sessions/{sid}/flags and returns the most recent
@@ -693,6 +698,15 @@ function deriveSpeakerWarning(flag: ModeratorFlag | null): string | null {
   if (!flag || !flag.created_at) return null;
   const ageMs = Date.now() - flag.created_at;
   if (ageMs > 5 * 60_000) return null;
+  // AI2: prefer Claude's specific suggestion when the flag was
+  // produced by an escalation. Falls back to reason, then to the
+  // generic message for fast-path-only blocks.
+  if (flag.suggestion && flag.suggestion.length > 0) {
+    return flag.suggestion;
+  }
+  if (flag.reason && flag.reason.length > 0) {
+    return flag.reason;
+  }
   if (flag.type === 'harsh_startup') {
     return 'That came across pretty hot. Try saying what you need or feel, not what your partner is doing wrong.';
   }
@@ -739,8 +753,9 @@ function TranslatorReviewView({
         {translation.moderator_tier === 'tier_2' ? (
           <View style={styles.warning}>
             <Text style={styles.warningLabel}>
-              We picked up some heat in your wording. Take a beat to read it
-              back before sending.
+              {translation.moderator_suggestion
+                ? translation.moderator_suggestion
+                : 'We picked up some heat in your wording. Take a beat to read it back before sending.'}
             </Text>
           </View>
         ) : null}
@@ -776,8 +791,9 @@ function TranslatorReviewView({
       {translation.moderator_tier === 'tier_2' ? (
         <View style={styles.warning}>
           <Text style={styles.warningLabel}>
-            This came across with some heat. The suggested wording aims for the
-            same point in a way that lands easier.
+            {translation.moderator_suggestion
+              ? translation.moderator_suggestion
+              : 'This came across with some heat. The suggested wording aims for the same point in a way that lands easier.'}
           </Text>
         </View>
       ) : null}
