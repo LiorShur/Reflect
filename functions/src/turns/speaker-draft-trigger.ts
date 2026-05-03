@@ -3,7 +3,7 @@ import { logger } from 'firebase-functions/v2';
 import { onValueWritten } from 'firebase-functions/v2/database';
 
 import { ANTHROPIC_API_KEY, callClaude } from '../anthropic/client';
-import { scoreFastPath } from '../moderator/score';
+import { scoreFastPath, type SpeakerBaseline } from '../moderator/score';
 import { trace } from '../telemetry/trace';
 import {
   isValidDraftText,
@@ -83,8 +83,18 @@ export const onSpeakerDraftWritten = onValueWritten(
       return;
     }
 
-    // 1. Moderator fast-path
-    const modResult = scoreFastPath(rawText);
+    // 1. Moderator fast-path. Read the speaker's baseline so the
+    // activation-delta scoring (docs/10 § Activation markers) actually
+    // engages once they have ≥5 archived turns. AI5 — written by the
+    // history trigger.
+    const speakerUid = currentTurn.speaker_uid;
+    let baseline: SpeakerBaseline | undefined;
+    if (speakerUid) {
+      const baselineSnap = await db.ref(`users/${speakerUid}/baseline`).get();
+      const val = baselineSnap.val() as SpeakerBaseline | null;
+      baseline = val ?? undefined;
+    }
+    const modResult = scoreFastPath(rawText, baseline);
 
     // 2. Moderator escalation (AI2). Only fires on fast-path tier_2;
     // fast-path tier_3 is deterministic (clear contempt patterns) so
