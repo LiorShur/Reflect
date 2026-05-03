@@ -12,7 +12,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "rules:test": "firebase emulators:exec --only database 'jest --config firebase/jest.config.js'",
+    "rules:test": "firebase emulators:exec --only database \"jest --config firebase/jest.config.js\"",
     "deploy:rules": "firebase deploy --only database",
     "deploy:functions": "firebase deploy --only functions",
     "eval": "ts-node eval/scripts/run-eval.ts",
