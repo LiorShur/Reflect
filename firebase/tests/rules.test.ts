@@ -243,6 +243,391 @@ describe('meta + telemetry paths (server-only)', () => {
   });
 });
 
+// Helper: override meta/state for a single test. The default seed is
+// state=IN_TURN; some paths gate on state=CHECK_IN, FLOOR_SWAP, etc.
+async function setState(state: string) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.database().ref(`sessions/${SID}/meta/state`).set(state);
+  });
+}
+
+describe('checkins (per-uid private)', () => {
+  beforeEach(async () => {
+    await setState('CHECK_IN');
+  });
+
+  it('partner can read own checkin', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/checkins/${A}`)
+        .set({ flooding_score: 4, ready: true });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/checkins/${A}`).once('value'),
+    );
+  });
+
+  it('partner cannot read other partner checkin', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/checkins/${A}`)
+        .set({ flooding_score: 9, ready: true });
+    });
+    await assertFails(refFor(B, `sessions/${SID}/checkins/${A}`).once('value'));
+  });
+
+  it('partner can write own checkin during CHECK_IN', async () => {
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/checkins/${A}`).set({
+        flooding_score: 3,
+        ready: true,
+      }),
+    );
+  });
+
+  it('partner cannot write other partner checkin', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/checkins/${B}`).set({
+        flooding_score: 1,
+        ready: true,
+      }),
+    );
+  });
+
+  it('partner cannot write own checkin outside CHECK_IN', async () => {
+    await setState('IN_TURN');
+    await assertFails(
+      refFor(A, `sessions/${SID}/checkins/${A}`).set({
+        flooding_score: 3,
+        ready: true,
+      }),
+    );
+  });
+
+  it('non-participant cannot read or write checkins', async () => {
+    await assertFails(refFor(X, `sessions/${SID}/checkins/${A}`).once('value'));
+    await assertFails(
+      refFor(X, `sessions/${SID}/checkins/${X}`).set({
+        flooding_score: 1,
+        ready: true,
+      }),
+    );
+  });
+});
+
+describe('mirror (listener-only one-shot write)', () => {
+  it('listener can write mirror when none exists', async () => {
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/current_turn/mirror`).set({
+        text: 'reflection',
+        submitted_at: 1,
+      }),
+    );
+  });
+
+  it('listener cannot overwrite existing mirror', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/current_turn/mirror`)
+        .set({ text: 'first', submitted_at: 1 });
+    });
+    await assertFails(
+      refFor(B, `sessions/${SID}/current_turn/mirror`).set({
+        text: 'overwrite',
+        submitted_at: 2,
+      }),
+    );
+  });
+
+  it('speaker cannot write mirror', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/current_turn/mirror`).set({
+        text: 'spoof',
+        submitted_at: 1,
+      }),
+    );
+  });
+
+  it('both partners can read mirror', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/current_turn/mirror`)
+        .set({ text: 'reflection', submitted_at: 1 });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/current_turn/mirror`).once('value'),
+    );
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/current_turn/mirror`).once('value'),
+    );
+  });
+
+  it('listener cannot write mirror outside IN_TURN', async () => {
+    await setState('FLOOR_SWAP');
+    await assertFails(
+      refFor(B, `sessions/${SID}/current_turn/mirror`).set({
+        text: 'reflection',
+        submitted_at: 1,
+      }),
+    );
+  });
+});
+
+describe('speaker_confirmation (speaker-only write)', () => {
+  it('speaker can write speaker_confirmation', async () => {
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/current_turn/speaker_confirmation`).set({
+        status: 'heard',
+      }),
+    );
+  });
+
+  it('listener cannot write speaker_confirmation', async () => {
+    await assertFails(
+      refFor(B, `sessions/${SID}/current_turn/speaker_confirmation`).set({
+        status: 'heard',
+      }),
+    );
+  });
+
+  it('both partners can read speaker_confirmation', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/current_turn/speaker_confirmation`)
+        .set({ status: 'heard' });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/current_turn/speaker_confirmation`).once(
+        'value',
+      ),
+    );
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/current_turn/speaker_confirmation`).once(
+        'value',
+      ),
+    );
+  });
+});
+
+describe('history (append-only, server-written)', () => {
+  it('neither partner can write history', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/history/turn1`).set({
+        speaker_uid: A,
+        delivered_text: 'fake',
+      }),
+    );
+    await assertFails(
+      refFor(B, `sessions/${SID}/history/turn1`).set({
+        speaker_uid: A,
+        delivered_text: 'fake',
+      }),
+    );
+  });
+
+  it('both partners can read history', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/history/turn1`)
+        .set({ speaker_uid: A, delivered_text: 'real' });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/history/turn1`).once('value'),
+    );
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/history/turn1`).once('value'),
+    );
+  });
+
+  it('non-participant cannot read history', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/history/turn1`)
+        .set({ speaker_uid: A, delivered_text: 'real' });
+    });
+    await assertFails(refFor(X, `sessions/${SID}/history/turn1`).once('value'));
+  });
+});
+
+describe('flags (server-written, participant-readable)', () => {
+  it('neither partner can write flags', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/flags/flag1`).set({
+        type: 'harsh_startup',
+        severity: 3,
+      }),
+    );
+    await assertFails(
+      refFor(B, `sessions/${SID}/flags/flag1`).set({
+        type: 'harsh_startup',
+        severity: 3,
+      }),
+    );
+  });
+
+  it('both partners can read flags', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/flags/flag1`)
+        .set({ type: 'harsh_startup', severity: 3, target_uid: A });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/flags/flag1`).once('value'),
+    );
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/flags/flag1`).once('value'),
+    );
+  });
+});
+
+describe('summary (per-partner confirms, server-written summaries)', () => {
+  it('partner A can confirm own summary', async () => {
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/summary/partner_a_confirmed`).set(true),
+    );
+  });
+
+  it('partner B cannot confirm partner A summary', async () => {
+    await assertFails(
+      refFor(B, `sessions/${SID}/summary/partner_a_confirmed`).set(true),
+    );
+  });
+
+  it('partner B can confirm own summary', async () => {
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/summary/partner_b_confirmed`).set(true),
+    );
+  });
+
+  it('partner A cannot confirm partner B summary', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/summary/partner_b_confirmed`).set(true),
+    );
+  });
+
+  it('neither partner can write a summary string', async () => {
+    await assertFails(
+      refFor(A, `sessions/${SID}/summary/partner_a_summary`).set('spoof'),
+    );
+    await assertFails(
+      refFor(B, `sessions/${SID}/summary/partner_b_summary`).set('spoof'),
+    );
+  });
+
+  it('both partners can read summaries', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.database().ref(`sessions/${SID}/summary`).set({
+        partner_a_summary: 'A says…',
+        partner_b_summary: 'B says…',
+      });
+    });
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/summary/partner_b_summary`).once('value'),
+    );
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/summary/partner_a_summary`).once('value'),
+    );
+  });
+});
+
+describe('presence (per-uid)', () => {
+  it('user can write own presence', async () => {
+    await assertSucceeds(
+      refFor(A, `sessions/${SID}/presence/${A}/online`).set(true),
+    );
+  });
+
+  it('user cannot write other user presence', async () => {
+    await assertFails(
+      refFor(B, `sessions/${SID}/presence/${A}/online`).set(true),
+    );
+  });
+
+  it('both partners can read partner presence', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`sessions/${SID}/presence/${A}/online`)
+        .set(true);
+    });
+    await assertSucceeds(
+      refFor(B, `sessions/${SID}/presence/${A}/online`).once('value'),
+    );
+  });
+});
+
+describe('appreciation_feed (recipient-private, sender-attributed)', () => {
+  it('recipient can read own feed', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`appreciation_feed/${A}/entry1`)
+        .set({ from_uid: B, content: 'thanks' });
+    });
+    await assertSucceeds(refFor(A, `appreciation_feed/${A}`).once('value'));
+  });
+
+  it('non-recipient cannot read others feed', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`appreciation_feed/${A}/entry1`)
+        .set({ from_uid: B, content: 'thanks' });
+    });
+    await assertFails(refFor(B, `appreciation_feed/${A}`).once('value'));
+  });
+
+  it('sender can write to recipient feed when from_uid===self', async () => {
+    await assertSucceeds(
+      refFor(B, `appreciation_feed/${A}/entry2`).set({
+        from_uid: B,
+        content: 'thanks',
+      }),
+    );
+  });
+
+  it('sender cannot spoof from_uid', async () => {
+    await assertFails(
+      refFor(B, `appreciation_feed/${A}/entry3`).set({
+        from_uid: A,
+        content: 'self-fake',
+      }),
+    );
+  });
+
+  it('recipient can write reaction on own entry', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`appreciation_feed/${A}/entry4`)
+        .set({ from_uid: B, content: 'kind' });
+    });
+    await assertSucceeds(
+      refFor(A, `appreciation_feed/${A}/entry4/reaction`).set('heart'),
+    );
+  });
+
+  it('sender cannot write reaction on recipient entry', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .database()
+        .ref(`appreciation_feed/${A}/entry5`)
+        .set({ from_uid: B, content: 'kind' });
+    });
+    await assertFails(
+      refFor(B, `appreciation_feed/${A}/entry5/reaction`).set('heart'),
+    );
+  });
+});
+
 describe('pair_codes path (server-only)', () => {
   it('authenticated user cannot read pair_codes', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
