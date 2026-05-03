@@ -58,7 +58,13 @@ export const requestSessionEnd = onCall<
     );
   }
 
-  await db.ref(`sessions/${sessionId}/current_turn/end_acks/${uid}`).set(true);
+  await db.ref(`sessions/${sessionId}/current_turn`).update({
+    [`end_acks/${uid}`]: true,
+    // Symmetric with ackFloorSwap: tapping "End the session" clears
+    // any stale "Ready to continue" ack so the partner sees the
+    // current intent.
+    [`swap_acks/${uid}`]: null,
+  });
 
   const acksSnap = await db
     .ref(`sessions/${sessionId}/current_turn/end_acks`)

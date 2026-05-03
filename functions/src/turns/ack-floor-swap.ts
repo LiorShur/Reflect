@@ -58,7 +58,14 @@ export const ackFloorSwap = onCall<
     );
   }
 
-  await db.ref(`sessions/${sessionId}/current_turn/swap_acks/${uid}`).set(true);
+  await db.ref(`sessions/${sessionId}/current_turn`).update({
+    [`swap_acks/${uid}`]: true,
+    // Tapping "Ready to continue" is the opposite intent of
+    // "End the session" — clear any stale end_ack from the same
+    // partner so they can change their mind without being held to
+    // a prior tap.
+    [`end_acks/${uid}`]: null,
+  });
 
   // Re-read both acks to decide whether to transition. Reading after
   // the write avoids a TOCTOU window where both clients read pre-write
