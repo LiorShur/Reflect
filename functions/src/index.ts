@@ -18,6 +18,7 @@ export { createSession } from './sessions/create-session';
 export { proposeTopic, acceptTopic, reframeTopic } from './sessions/topic';
 export { clearStaleSession } from './sessions/clear-stale-session';
 export { onCheckinWritten } from './sessions/checkins-trigger';
+export { onSessionEnded } from './sessions/last-conflict-trigger';
 export { requestSessionEnd } from './sessions/end-session';
 export { requestPause } from './sessions/request-pause';
 export { resumeFromPause } from './sessions/resume-from-pause';
