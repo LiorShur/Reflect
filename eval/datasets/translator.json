@@ -1,0 +1,112 @@
+[
+  {
+    "id": "T-001",
+    "input": {
+      "RAW_STATEMENT": "You never listen to me. I came home and started telling you about the meeting and you just kept scrolling.",
+      "TOPIC": "feeling unheard",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": false,
+      "cannot_soften": false,
+      "must_contain": ["I felt"],
+      "must_not_contain": ["you never"]
+    },
+    "notes": "Classic 'you never' → I-statement transformation. The canonical translator example from docs/05."
+  },
+  {
+    "id": "T-002",
+    "input": {
+      "RAW_STATEMENT": "I've been feeling like we're drifting and I want to figure out what's going on.",
+      "TOPIC": "connection",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": true,
+      "cannot_soften": false
+    },
+    "notes": "Already in softened complaint form. Should set already_soft=true, leave the text unchanged."
+  },
+  {
+    "id": "T-003",
+    "input": {
+      "RAW_STATEMENT": "You're being so passive aggressive about the dishes again.",
+      "TOPIC": "chores",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": false,
+      "cannot_soften": false,
+      "must_not_contain": ["passive aggressive", "you're being"]
+    },
+    "notes": "Character attack ('you're being X'). Should reframe to specific behavior + speaker's feeling."
+  },
+  {
+    "id": "T-004",
+    "input": {
+      "RAW_STATEMENT": "I felt invisible at the dinner with your parents when you didn't include me in the planning conversation.",
+      "TOPIC": "in-laws",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": true
+    },
+    "notes": "I-statement, specific situation. Already softened."
+  },
+  {
+    "id": "T-005",
+    "input": {
+      "RAW_STATEMENT": "I hate that you always pick fights right before bed.",
+      "TOPIC": "evenings",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": false,
+      "cannot_soften": false,
+      "must_not_contain": ["you always", "pick fights"]
+    },
+    "notes": "Mixed: contains an I-feeling but with absolutism + character attack. Should reframe."
+  },
+  {
+    "id": "T-006",
+    "input": {
+      "RAW_STATEMENT": "thanks",
+      "TOPIC": "weekend plans",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "cannot_soften": true
+    },
+    "notes": "Too short to be a complaint at all; cannot_soften applies."
+  },
+  {
+    "id": "T-007",
+    "input": {
+      "RAW_STATEMENT": "I felt like shit when you walked out mid-sentence yesterday.",
+      "TOPIC": "yesterday's argument",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": false,
+      "cannot_soften": false,
+      "must_contain": ["like shit"],
+      "must_not_contain": ["experienced significant distress"]
+    },
+    "notes": "Tests register-preservation. Hard rule: don't therapize the speaker's voice."
+  },
+  {
+    "id": "T-008",
+    "input": {
+      "RAW_STATEMENT": "I'm furious that you forgot the appointment AGAIN.",
+      "TOPIC": "scheduling",
+      "FEELING_OR_NULL": "null"
+    },
+    "expect": {
+      "already_soft": false,
+      "cannot_soften": false,
+      "must_contain": ["I"],
+      "must_not_contain": ["AGAIN"]
+    },
+    "notes": "Anger should be preserved (form, not weight). The all-caps emphasis should soften, but the feeling stays angry."
+  }
+]

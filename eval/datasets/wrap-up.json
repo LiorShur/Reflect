@@ -1,0 +1,48 @@
+[
+  {
+    "id": "W-001",
+    "input": {
+      "TOPIC": "how we share weekend planning",
+      "TURN_HISTORY": "Turn 1 (Partner A speaking):\n  Partner A said: I felt left out when you booked the cabin without checking with me first. I want us to plan weekends together.\n  Partner B reflected: You felt sidelined that I made the plan alone. You'd like us to decide together going forward.\n\nTurn 2 (Partner B speaking):\n  Partner B said: I felt rushed because the cabin was about to be booked by someone else. I jumped on it and forgot to loop you in.\n  Partner A reflected: You felt time pressure and acted fast. It wasn't about excluding me.",
+      "PARTNER_A_NAME": "Partner A",
+      "PARTNER_B_NAME": "Partner B"
+    },
+    "expect": {
+      "partner_a_summary_must_contain": ["sidelined", "together"],
+      "partner_b_summary_must_contain": ["rushed", "time"],
+      "must_not_suggest_solutions": true,
+      "must_not_blame": true
+    },
+    "notes": "Two-turn back-and-forth. Both summaries should reflect each partner's own statement, not editorialize."
+  },
+  {
+    "id": "W-002",
+    "input": {
+      "TOPIC": "screen time at dinner",
+      "TURN_HISTORY": "Turn 1 (Partner A speaking):\n  Partner A said: I felt invisible when you scrolled through your phone at dinner last night. I really need eye contact when we eat together.\n  Partner B reflected: You felt unseen at dinner. You need eye contact and presence during shared meals.",
+      "PARTNER_A_NAME": "Partner A",
+      "PARTNER_B_NAME": "Partner B"
+    },
+    "expect": {
+      "partner_a_summary_must_contain": ["invisible", "eye contact"],
+      "partner_b_summary_must_be_short": true,
+      "must_not_suggest_solutions": true
+    },
+    "notes": "Single-turn case (B didn't speak). B's summary should reflect what they did, not invent content."
+  },
+  {
+    "id": "W-003",
+    "input": {
+      "TOPIC": "household labor",
+      "TURN_HISTORY": "Turn 1 (Partner A speaking):\n  Partner A said: I'm exhausted from carrying the mental load of every appointment, every birthday card, every grocery list. I need you to take ownership of some of this.\n  Partner B reflected: You're worn out from holding all the planning. You want me to own pieces of it, not just help when asked.\n\nTurn 2 (Partner B speaking):\n  Partner B said: I didn't realize the weight of the planning was that heavy. I see it differently now. I want to take on the appointments fully.\n  Partner A reflected: You hadn't seen how heavy the planning was for me. You want to take the appointments fully.\n\nTurn 3 (Partner A speaking):\n  Partner A said: That helps. I feel less alone hearing you say that.\n  Partner B reflected: It eased something for you to hear me name it.",
+      "PARTNER_A_NAME": "Partner A",
+      "PARTNER_B_NAME": "Partner B"
+    },
+    "expect": {
+      "partner_a_summary_must_contain": ["mental load"],
+      "partner_b_summary_must_contain": ["appointments"],
+      "must_not_suggest_solutions": true
+    },
+    "notes": "Three turns showing movement. The summary should capture each side, not narrate the resolution as if the conversation 'fixed' it."
+  }
+]
