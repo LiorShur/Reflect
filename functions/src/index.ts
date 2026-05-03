@@ -19,6 +19,8 @@ export { proposeTopic, acceptTopic, reframeTopic } from './sessions/topic';
 export { clearStaleSession } from './sessions/clear-stale-session';
 export { onCheckinWritten } from './sessions/checkins-trigger';
 export { requestSessionEnd } from './sessions/end-session';
+export { requestPause } from './sessions/request-pause';
+export { resumeFromPause } from './sessions/resume-from-pause';
 export { onMetaStateWritten } from './sessions/wrap-up-trigger';
 export { onWrapUpConfirmWritten } from './sessions/wrap-up-confirm-trigger';
 export { onSpeakerDraftWritten } from './turns/speaker-draft-trigger';
