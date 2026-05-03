@@ -14,6 +14,7 @@ import {
   off,
   onDisconnect,
   onValue,
+  push,
   ref,
   set,
 } from 'firebase/database';
@@ -31,7 +32,7 @@ import { useAuthState, type AuthState } from '../hooks/use-auth-state';
 import { useCurrentTurn, type CurrentTurn } from '../hooks/use-current-turn';
 import { useSession, type SessionMeta } from '../hooks/use-session';
 import { useSpeakerDraft } from '../hooks/use-speaker-draft';
-import { useSummary } from '../hooks/use-summary';
+import { useSummary, type NextAction } from '../hooks/use-summary';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'Session'>;
@@ -134,14 +135,17 @@ export default function SessionScreen() {
       return <FloorSwapView sessionId={sessionId} uid={uid} />;
     case 'PAUSED':
       return <PausedView sessionId={sessionId} uid={uid} meta={meta} />;
-    case 'WRAP_UP':
+    case 'WRAP_UP': {
+      const partnerUid = meta.partnerA === uid ? meta.partnerB : meta.partnerA;
       return (
         <WrapUpView
           sessionId={sessionId}
           uid={uid}
           partnerAUid={meta.partnerA}
+          partnerUid={partnerUid ?? null}
         />
       );
+    }
     case 'ENDED':
       return (
         <PlaceholderView
@@ -1412,14 +1416,21 @@ function WrapUpView({
   sessionId,
   uid,
   partnerAUid,
+  partnerUid,
 }: {
   sessionId: string;
   uid: string;
   partnerAUid: string;
+  partnerUid: string | null;
 }) {
   const navigation = useNavigation<Nav>();
   const summaryView = useSummary(sessionId);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [appreciationText, setAppreciationText] = useState('');
+  const [appreciationBusy, setAppreciationBusy] = useState(false);
+  const [appreciationSent, setAppreciationSent] = useState(false);
 
   if (!summaryView.ready) {
     return (
@@ -1445,28 +1456,23 @@ function WrapUpView({
   }
 
   const isPartnerA = uid === partnerAUid;
-  const ownSummary = isPartnerA
-    ? summary.partner_a_summary
-    : summary.partner_b_summary;
-  const partnerSummary = isPartnerA
-    ? summary.partner_b_summary
-    : summary.partner_a_summary;
+  const ownSummary =
+    (isPartnerA ? summary.partner_a_summary : summary.partner_b_summary) ?? '';
+  const partnerSummary =
+    (isPartnerA ? summary.partner_b_summary : summary.partner_a_summary) ?? '';
   const ownConfirmed = isPartnerA
     ? summary.partner_a_confirmed === true
     : summary.partner_b_confirmed === true;
   const partnerConfirmed = isPartnerA
     ? summary.partner_b_confirmed === true
     : summary.partner_a_confirmed === true;
+  const nextAction = summary.next_action ?? null;
 
   const confirm = async () => {
     setBusy(true);
     try {
       const fb = tryInitFirebase();
       if (!fb) throw new Error('Firebase not configured.');
-      // Direct RTDB write — security rules already grant each partner
-      // write access to their own confirmation flag. The wrap-up
-      // confirm trigger picks it up and transitions to ENDED when
-      // both partners have flipped their flag.
       const db = getDatabase(fb.app);
       const field = isPartnerA ? 'partner_a_confirmed' : 'partner_b_confirmed';
       await set(ref(db, `sessions/${sessionId}/summary/${field}`), true);
@@ -1474,6 +1480,70 @@ function WrapUpView({
       Alert.alert('Could not confirm', readableError(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const startEdit = () => {
+    setEditText(ownSummary);
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    const trimmed = editText.trim();
+    if (trimmed.length === 0) return;
+    setBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<
+        { session_id: string; text: string },
+        { ok: true }
+      >(getFunctions(fb.app), 'adjustSummary');
+      await fn({ session_id: sessionId, text: trimmed });
+      setEditing(false);
+    } catch (err) {
+      Alert.alert('Could not save', readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setNextAction = async (action: NextAction) => {
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const db = getDatabase(fb.app);
+      // Toggle off if tapped again. Existing security rule grants
+      // either partner write on summary/next_action.
+      const newVal = nextAction === action ? null : action;
+      await set(ref(db, `sessions/${sessionId}/summary/next_action`), newVal);
+    } catch (err) {
+      Alert.alert('Could not set next step', readableError(err));
+    }
+  };
+
+  const sendAppreciation = async () => {
+    const trimmed = appreciationText.trim();
+    if (trimmed.length === 0 || !partnerUid) return;
+    setAppreciationBusy(true);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const db = getDatabase(fb.app);
+      const feedRef = ref(db, `appreciation_feed/${partnerUid}`);
+      const entryRef = push(feedRef);
+      await set(entryRef, {
+        from_uid: uid,
+        content: trimmed,
+        tags: ['from_session_wrap_up'],
+        created_at: Date.now(),
+      });
+      setAppreciationSent(true);
+      setAppreciationText('');
+    } catch (err) {
+      Alert.alert('Could not send', readableError(err));
+    } finally {
+      setAppreciationBusy(false);
     }
   };
 
@@ -1492,27 +1562,70 @@ function WrapUpView({
       ) : null}
 
       <Text style={styles.smallLabel}>Your story</Text>
-      <View style={styles.translationBox}>
-        <Text style={styles.translationText}>{ownSummary}</Text>
-      </View>
-      <Pressable
-        style={[
-          styles.primaryButton,
-          (busy || ownConfirmed) && styles.disabledButton,
-        ]}
-        disabled={busy || ownConfirmed}
-        onPress={confirm}
-      >
-        <Text style={styles.primaryLabel}>
-          {ownConfirmed
-            ? partnerConfirmed
-              ? 'Confirmed — wrapping up…'
-              : 'Confirmed — waiting for your partner'
-            : busy
-              ? 'Confirming…'
-              : 'This captures it'}
-        </Text>
-      </Pressable>
+      {editing ? (
+        <>
+          <TextInput
+            value={editText}
+            onChangeText={setEditText}
+            multiline
+            style={styles.composeInput}
+            editable={!busy}
+            maxLength={2000}
+          />
+          <Pressable
+            style={[
+              styles.primaryButton,
+              (busy || editText.trim().length === 0) && styles.disabledButton,
+            ]}
+            disabled={busy || editText.trim().length === 0}
+            onPress={saveEdit}
+          >
+            <Text style={styles.primaryLabel}>
+              {busy ? 'Saving…' : 'Save my version'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, busy && styles.disabledButton]}
+            disabled={busy}
+            onPress={() => setEditing(false)}
+          >
+            <Text style={styles.secondaryLabel}>Cancel</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <View style={styles.translationBox}>
+            <Text style={styles.translationText}>{ownSummary}</Text>
+          </View>
+          <Pressable
+            style={[
+              styles.primaryButton,
+              (busy || ownConfirmed) && styles.disabledButton,
+            ]}
+            disabled={busy || ownConfirmed}
+            onPress={confirm}
+          >
+            <Text style={styles.primaryLabel}>
+              {ownConfirmed
+                ? partnerConfirmed
+                  ? 'Confirmed — wrapping up…'
+                  : 'Confirmed — waiting for your partner'
+                : busy
+                  ? 'Confirming…'
+                  : 'This captures it'}
+            </Text>
+          </Pressable>
+          {!ownConfirmed ? (
+            <Pressable
+              style={[styles.secondaryButton, busy && styles.disabledButton]}
+              disabled={busy}
+              onPress={startEdit}
+            >
+              <Text style={styles.secondaryLabel}>Let me adjust</Text>
+            </Pressable>
+          ) : null}
+        </>
+      )}
 
       <Text style={[styles.smallLabel, { marginTop: 24 }]}>Their story</Text>
       <View style={[styles.translationBox, styles.translationBoxMuted]}>
@@ -1528,11 +1641,78 @@ function WrapUpView({
         </Text>
       )}
 
+      <Text style={[styles.smallLabel, { marginTop: 28 }]}>What's next?</Text>
+      <Text style={styles.helperLeft}>
+        Pick what fits — both of you can suggest. Tapping again unselects.
+      </Text>
+      <View style={styles.tagRow}>
+        {(
+          [
+            ['leave', 'Leave it here for now'],
+            ['schedule_solving', 'Schedule problem-solving for this'],
+            ['add_to_perpetual', 'Add to our recurring topics'],
+          ] as const
+        ).map(([value, label]) => {
+          const active = nextAction === value;
+          return (
+            <Pressable
+              key={value}
+              style={[styles.tag, active && styles.tagActive]}
+              onPress={() => void setNextAction(value)}
+            >
+              <Text style={[styles.tagLabel, active && styles.tagLabelActive]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {partnerUid ? (
+        <>
+          <Text style={[styles.smallLabel, { marginTop: 28 }]}>
+            One thing you appreciated (optional)
+          </Text>
+          {appreciationSent ? (
+            <Text style={styles.helperLeft}>
+              Sent. Your partner will see it on their feed.
+            </Text>
+          ) : (
+            <>
+              <TextInput
+                value={appreciationText}
+                onChangeText={setAppreciationText}
+                multiline
+                placeholder="Something specific about how they showed up…"
+                style={styles.feelingInput}
+                editable={!appreciationBusy}
+                maxLength={500}
+              />
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  (appreciationBusy || appreciationText.trim().length === 0) &&
+                    styles.disabledButton,
+                ]}
+                disabled={
+                  appreciationBusy || appreciationText.trim().length === 0
+                }
+                onPress={sendAppreciation}
+              >
+                <Text style={styles.secondaryLabel}>
+                  {appreciationBusy ? 'Sending…' : 'Send appreciation'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </>
+      ) : null}
+
       <Pressable
-        style={styles.secondaryButton}
+        style={[styles.subtleButton]}
         onPress={() => navigation.popToTop()}
       >
-        <Text style={styles.secondaryLabel}>Back to home</Text>
+        <Text style={styles.subtleLabel}>Back to home</Text>
       </Pressable>
     </ScrollView>
   );
@@ -1584,6 +1764,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginTop: 12,
     textAlign: 'center',
+  },
+  helperLeft: {
+    fontSize: 13,
+    opacity: 0.6,
+    marginTop: 6,
+    marginBottom: 8,
   },
   partnerStatus: {
     paddingVertical: 8,
