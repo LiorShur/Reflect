@@ -433,6 +433,9 @@ function PausedView({
   const selfAcked = meta.resume_acks?.[uid] === true;
   const otherUid = meta.partnerA === uid ? meta.partnerB : meta.partnerA;
   const partnerAcked = otherUid ? meta.resume_acks?.[otherUid] === true : false;
+  const selfRequested = meta.pause_requested_by === uid;
+  const partnerRequested =
+    !!meta.pause_requested_by && meta.pause_requested_by !== uid;
 
   const callResume = async () => {
     setBusy(true);
@@ -473,14 +476,22 @@ function PausedView({
       <Text style={styles.stepLabel}>Cooldown</Text>
       <Text style={styles.heading}>Take a breather</Text>
       <Text style={styles.paragraph}>
-        The session is paused. Twenty minutes lets the body settle so you both
-        come back grounded.
+        {selfRequested
+          ? 'You asked for a break. Twenty minutes lets the body settle so you both come back grounded.'
+          : partnerRequested
+            ? 'Your partner asked for a break. Twenty minutes lets the body settle so you both come back grounded.'
+            : 'The session is paused. Twenty minutes lets the body settle so you both come back grounded.'}
       </Text>
       <View style={styles.timerBox}>
         <Text style={styles.timerLabel}>
           {timerExpired ? 'Ready when you both are' : countdownText}
         </Text>
       </View>
+      {partnerAcked && !selfAcked ? (
+        <View style={styles.cue}>
+          <Text style={styles.cueLabel}>Your partner is ready to resume.</Text>
+        </View>
+      ) : null}
       <Pressable
         style={[
           styles.primaryButton,
@@ -496,7 +507,9 @@ function PausedView({
               : 'Waiting for your partner'
             : busy
               ? 'Sending…'
-              : 'Continue session'}
+              : partnerAcked
+                ? 'Continue session (partner is ready)'
+                : 'Continue session'}
         </Text>
       </Pressable>
       {!timerExpired && !selfAcked ? (
@@ -1284,6 +1297,11 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
   const summary = turn.floor_swap_summary;
   const alreadyAcked = turn.swap_acks?.[uid] === true;
   const alreadyEndAcked = turn.end_acks?.[uid] === true;
+  const otherUid =
+    summary?.prev_speaker_uid === uid
+      ? summary?.prev_listener_uid
+      : summary?.prev_speaker_uid;
+  const partnerEndAcked = otherUid ? turn.end_acks?.[otherUid] === true : false;
   const isNextSpeaker = turn.speaker_uid === uid;
 
   const callable = async (
@@ -1336,6 +1354,14 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
             <Text style={styles.translationText}>{summary.mirror_text}</Text>
           </View>
         </>
+      ) : null}
+      {partnerEndAcked && !alreadyEndAcked ? (
+        <View style={styles.cue}>
+          <Text style={styles.cueLabel}>
+            Your partner wants to end the session. Tap "End the session" to
+            agree, or "Ready to continue" to keep going.
+          </Text>
+        </View>
       ) : null}
       <Pressable
         style={[
@@ -1455,6 +1481,15 @@ function WrapUpView({
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.stepLabel}>Wrap-up</Text>
       <Text style={styles.heading}>Here's what I heard you both say</Text>
+
+      {partnerConfirmed && !ownConfirmed ? (
+        <View style={styles.cue}>
+          <Text style={styles.cueLabel}>
+            Your partner felt their summary captures it. Confirm yours when
+            you're ready to wrap up.
+          </Text>
+        </View>
+      ) : null}
 
       <Text style={styles.smallLabel}>Your story</Text>
       <View style={styles.translationBox}>
@@ -1662,6 +1697,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   warningLabel: { color: '#854d0e', fontSize: 14 },
+  cue: {
+    padding: 12,
+    backgroundColor: '#dbeafe',
+    borderRadius: 6,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563eb',
+  },
+  cueLabel: { color: '#1e3a8a', fontSize: 14, lineHeight: 20 },
   smallLabel: {
     fontSize: 12,
     fontWeight: '600',
