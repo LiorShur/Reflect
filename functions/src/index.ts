@@ -27,3 +27,4 @@ export { onSpeakerDraftWritten } from './turns/speaker-draft-trigger';
 export { decideTranslation } from './turns/decide-translation';
 export { confirmTurn } from './turns/confirm-turn';
 export { ackFloorSwap } from './turns/ack-floor-swap';
+export { onHistoryWritten } from './turns/history-trigger';
