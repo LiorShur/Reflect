@@ -7,11 +7,14 @@ import { tryInitFirebase } from '../firebase';
 // strings are server-written by the wrap-up summarizer trigger;
 // the *_confirmed flags are client-writable per existing security
 // rules (each partner can only flip their own).
+export type NextAction = 'leave' | 'schedule_solving' | 'add_to_perpetual';
+
 export interface SessionSummary {
   partner_a_summary?: string;
   partner_b_summary?: string;
   partner_a_confirmed?: boolean;
   partner_b_confirmed?: boolean;
+  next_action?: NextAction;
   prompt_version?: string;
   generated_at?: number;
 }
