@@ -6,6 +6,8 @@ import { bothPartnersConfirmedWrapUp } from './wrap-up-utils';
 
 interface SessionMeta {
   state?: string;
+  partnerA?: string;
+  partnerB?: string;
 }
 
 interface SummaryNode {
@@ -41,7 +43,25 @@ export const onWrapUpConfirmWritten = onValueWritten(
 
     if (!bothPartnersConfirmedWrapUp(summary)) return;
 
-    await db.ref(`sessions/${sessionId}/meta/state`).set('ENDED');
+    // Atomic transition: state → ENDED + clear both partners'
+    // active_session_id pointers. Without the active-session clears,
+    // Home keeps showing "Resume session" / "Join — your partner is
+    // in the session" against the dead session, and the partner-
+    // presence auto-route can pull the user back into ENDED in a
+    // loop. Also clear presence so the partner side doesn't keep
+    // appearing "in session".
+    const update: Record<string, unknown> = {
+      [`sessions/${sessionId}/meta/state`]: 'ENDED',
+      [`sessions/${sessionId}/presence`]: null,
+    };
+    if (meta.partnerA) {
+      update[`users/${meta.partnerA}/profile/active_session_id`] = null;
+    }
+    if (meta.partnerB) {
+      update[`users/${meta.partnerB}/profile/active_session_id`] = null;
+    }
+    await db.ref().update(update);
+
     logger.info('WRAP_UP → ENDED (both partners confirmed)', {
       session_id: sessionId,
     });
