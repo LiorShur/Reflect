@@ -27,22 +27,23 @@ interface CurrentTurn {
   speaker_uid?: string;
 }
 
-// Fires on every write to /sessions/{sid}/current_turn/speaker_draft.
-// Only acts on the false → true commit transition; subsequent writes
-// (e.g., the trigger itself reverting committed=false on a tier_3
-// block) are ignored via the same guard.
+// Fires on every write to /sessions/{sid}/speaker_draft. Note this
+// path lives at the session level (not under /current_turn) so the
+// security rules can keep the speaker's draft genuinely private —
+// see the broader rules refactor in firebase/database.rules.json
+// (D3 fix). Only acts on the false → true commit transition;
+// subsequent writes (e.g., the trigger itself reverting committed=
+// false on a tier_3 block) are ignored via the same guard.
 //
 // Sequence on commit:
-//   1. moderator fast-path (M1) — tier_3 hard-blocks; tier_1/2/clean
-//      proceeds to the translator
-//   2. translator (Anthropic) — writes softened/changes_made/etc to
-//      current_turn/translation. Speaker reviews and approves via
-//      decideTranslation (next file).
+//   1. moderator fast-path (M1)
+//   2. moderator escalation (AI2) for fast-path tier_2 only
+//   3. translator (AI3) for tier_1 / tier_2 / clean
 //
-// docs/05 § Translator + docs/10 § Moderator fast-path
+// docs/05 § Translator + docs/10 § Moderator fast-path.
 export const onSpeakerDraftWritten = onValueWritten(
   {
-    ref: '/sessions/{sessionId}/current_turn/speaker_draft',
+    ref: '/sessions/{sessionId}/speaker_draft',
     secrets: [ANTHROPIC_API_KEY],
   },
   async (event) => {
@@ -230,7 +231,7 @@ export const onSpeakerDraftWritten = onValueWritten(
 // returns to compose. Leaves raw text intact so they can revise.
 async function revertCommit(sessionId: string): Promise<void> {
   await getDatabase()
-    .ref(`sessions/${sessionId}/current_turn/speaker_draft/committed`)
+    .ref(`sessions/${sessionId}/speaker_draft/committed`)
     .set(false);
 }
 

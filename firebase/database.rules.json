@@ -37,9 +37,9 @@
       ".indexOn": ["meta/partnerA", "meta/partnerB"],
 
       "$sid": {
-        ".read": "auth != null && (data.child('meta/partnerA').val() === auth.uid || data.child('meta/partnerB').val() === auth.uid)",
 
         "meta": {
+          ".read": "auth != null && (data.child('partnerA').val() === auth.uid || data.child('partnerB').val() === auth.uid)",
           ".write": false
         },
 
@@ -51,16 +51,12 @@
         },
 
         "current_turn": {
+          ".read": "auth != null && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)",
           "speaker_uid": {
             ".write": false
           },
           "listener_uid": {
             ".write": false
-          },
-
-          "speaker_draft": {
-            ".read": "auth != null && auth.uid === data.parent().child('speaker_uid').val()",
-            ".write": "auth != null && auth.uid === data.parent().child('speaker_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
           },
 
           "translation": {
@@ -88,11 +84,6 @@
             ".write": false
           },
 
-          "listener_draft": {
-            ".read": "auth != null && auth.uid === data.parent().child('listener_uid').val()",
-            ".write": "auth != null && auth.uid === data.parent().child('listener_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
-          },
-
           "mirror": {
             ".write": "auth != null && auth.uid === data.parent().child('listener_uid').val() && !data.exists() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
           },
@@ -102,25 +93,39 @@
           }
         },
 
+        "speaker_draft": {
+          ".read": "auth != null && auth.uid === root.child('sessions/' + $sid + '/current_turn/speaker_uid').val()",
+          ".write": "auth != null && auth.uid === root.child('sessions/' + $sid + '/current_turn/speaker_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+        },
+
+        "listener_draft": {
+          ".read": "auth != null && auth.uid === root.child('sessions/' + $sid + '/current_turn/listener_uid').val()",
+          ".write": "auth != null && auth.uid === root.child('sessions/' + $sid + '/current_turn/listener_uid').val() && root.child('sessions/' + $sid + '/meta/state').val() === 'IN_TURN'"
+        },
+
         "history": {
+          ".read": "auth != null && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)",
           "$turnId": {
             ".write": false
           }
         },
 
         "flags": {
+          ".read": "auth != null && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)",
           "$flagId": {
             ".write": false
           }
         },
 
         "presence": {
+          ".read": "auth != null && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid"
           }
         },
 
         "summary": {
+          ".read": "auth != null && (root.child('sessions/' + $sid + '/meta/partnerA').val() === auth.uid || root.child('sessions/' + $sid + '/meta/partnerB').val() === auth.uid)",
           "partner_a_summary": {
             ".write": false
           },
@@ -160,7 +165,7 @@
         ".read": "auth != null && auth.uid === $uid",
         ".indexOn": ["created_at"],
         "$entryId": {
-          ".write": "auth != null && (auth.uid === $uid || auth.uid === newData.child('from_uid').val())",
+          ".write": "auth != null && !data.exists() && (auth.uid === $uid || auth.uid === newData.child('from_uid').val())",
           "reaction": {
             ".write": "auth != null && auth.uid === $uid"
           }

@@ -60,11 +60,11 @@ describe('partner-boundary reads', () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await ctx
         .database()
-        .ref(`sessions/${SID}/current_turn/speaker_draft`)
+        .ref(`sessions/${SID}/speaker_draft`)
         .set({ text: 'hi', committed: false });
     });
     await assertSucceeds(
-      refFor(A, `sessions/${SID}/current_turn/speaker_draft`).once('value'),
+      refFor(A, `sessions/${SID}/speaker_draft`).once('value'),
     );
   });
 
@@ -72,23 +72,21 @@ describe('partner-boundary reads', () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await ctx
         .database()
-        .ref(`sessions/${SID}/current_turn/speaker_draft`)
+        .ref(`sessions/${SID}/speaker_draft`)
         .set({ text: 'hi', committed: false });
     });
-    await assertFails(
-      refFor(B, `sessions/${SID}/current_turn/speaker_draft`).once('value'),
-    );
+    await assertFails(refFor(B, `sessions/${SID}/speaker_draft`).once('value'));
   });
 
   it('listener can read own listener_draft', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await ctx
         .database()
-        .ref(`sessions/${SID}/current_turn/listener_draft`)
+        .ref(`sessions/${SID}/listener_draft`)
         .set({ text: 'mirror' });
     });
     await assertSucceeds(
-      refFor(B, `sessions/${SID}/current_turn/listener_draft`).once('value'),
+      refFor(B, `sessions/${SID}/listener_draft`).once('value'),
     );
   });
 
@@ -96,11 +94,11 @@ describe('partner-boundary reads', () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await ctx
         .database()
-        .ref(`sessions/${SID}/current_turn/listener_draft`)
+        .ref(`sessions/${SID}/listener_draft`)
         .set({ text: 'mirror' });
     });
     await assertFails(
-      refFor(A, `sessions/${SID}/current_turn/listener_draft`).once('value'),
+      refFor(A, `sessions/${SID}/listener_draft`).once('value'),
     );
   });
 
@@ -112,7 +110,7 @@ describe('partner-boundary reads', () => {
 describe('partner-boundary writes', () => {
   it('speaker can write own speaker_draft when state=IN_TURN', async () => {
     await assertSucceeds(
-      refFor(A, `sessions/${SID}/current_turn/speaker_draft`).set({
+      refFor(A, `sessions/${SID}/speaker_draft`).set({
         text: 'draft',
         committed: false,
       }),
@@ -121,7 +119,7 @@ describe('partner-boundary writes', () => {
 
   it('listener cannot write speaker_draft', async () => {
     await assertFails(
-      refFor(B, `sessions/${SID}/current_turn/speaker_draft`).set({
+      refFor(B, `sessions/${SID}/speaker_draft`).set({
         text: 'draft',
         committed: false,
       }),

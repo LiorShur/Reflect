@@ -23,11 +23,6 @@ export interface Translation {
   moderator_reason?: string | null;
 }
 
-export interface SpeakerDraft {
-  raw?: string;
-  committed?: boolean;
-}
-
 export interface DeliveredMessage {
   text?: string;
   delivered_at?: number;
@@ -58,13 +53,15 @@ export interface FloorSwapSummary {
   created_at?: number;
 }
 
+// speaker_draft and listener_draft live at /sessions/{sid}/speaker_draft
+// and /sessions/{sid}/listener_draft respectively (siblings of
+// current_turn) so the security rules can keep them private to the
+// role. Use useSpeakerDraft / useListenerDraft to subscribe.
 export interface CurrentTurn {
   speaker_uid?: string;
   listener_uid?: string;
-  speaker_draft?: SpeakerDraft;
   translation?: Translation;
   delivered?: DeliveredMessage;
-  listener_draft?: ListenerDraft;
   mirror?: MirrorRecord;
   speaker_confirmation?: SpeakerConfirmation;
   floor_swap_summary?: FloorSwapSummary;
