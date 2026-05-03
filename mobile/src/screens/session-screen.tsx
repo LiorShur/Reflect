@@ -1307,7 +1307,9 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
       </Text>
       {summary?.delivered_text ? (
         <>
-          <Text style={styles.smallLabel}>They said</Text>
+          <Text style={styles.smallLabel}>
+            {summary.prev_speaker_uid === uid ? 'You said' : 'They said'}
+          </Text>
           <View style={[styles.translationBox, styles.translationBoxMuted]}>
             <Text style={styles.translationText}>{summary.delivered_text}</Text>
           </View>
@@ -1315,7 +1317,11 @@ function FloorSwapView({ sessionId, uid }: { sessionId: string; uid: string }) {
       ) : null}
       {summary?.mirror_text ? (
         <>
-          <Text style={styles.smallLabel}>You reflected</Text>
+          <Text style={styles.smallLabel}>
+            {summary.prev_listener_uid === uid
+              ? 'You reflected'
+              : 'They reflected'}
+          </Text>
           <View style={styles.translationBox}>
             <Text style={styles.translationText}>{summary.mirror_text}</Text>
           </View>
