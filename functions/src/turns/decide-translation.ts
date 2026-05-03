@@ -2,6 +2,7 @@ import { getDatabase } from 'firebase-admin/database';
 import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { recordTranslatorFeedback } from '../telemetry/translator-feedback';
 import { isValidDecision, type TranslationDecision } from './turn-utils';
 
 interface DecideTranslationRequest {
@@ -11,7 +12,12 @@ interface DecideTranslationRequest {
 
 interface CurrentTurn {
   speaker_uid?: string;
-  translation?: { softened?: string; approved?: boolean };
+  translation?: {
+    softened?: string;
+    approved?: boolean;
+    prompt_version?: string;
+    moderator_tier?: 'clean' | 'tier_1' | 'tier_2' | 'tier_3';
+  };
 }
 
 interface SpeakerDraft {
@@ -79,7 +85,26 @@ export const decideTranslation = onCall<
     );
   }
 
-  return await applyDecision(sessionId, turn, draft, decision);
+  const result = await applyDecision(sessionId, turn, draft, decision);
+
+  // E3 — feedback capture. Fire-and-forget so the user response isn't
+  // blocked on a telemetry write. Writes hashed input/output + the
+  // decision so we can compute acceptance rates per prompt version.
+  void recordTranslatorFeedback({
+    decision,
+    prompt_version: turn.translation?.prompt_version ?? 'unknown',
+    moderator_tier: turn.translation?.moderator_tier ?? null,
+    raw_text: draft.raw ?? '',
+    softened_text: turn.translation?.softened ?? '',
+    session_id: sessionId,
+    speaker_uid: uid,
+  }).catch((e) =>
+    logger.warn('translator feedback write failed', {
+      message: e instanceof Error ? e.message : String(e),
+    }),
+  );
+
+  return result;
 });
 
 async function applyDecision(

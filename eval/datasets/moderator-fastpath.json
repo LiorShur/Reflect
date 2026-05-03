@@ -1,0 +1,117 @@
+[
+  {
+    "id": "M-001",
+    "input": "I felt unheard when you scrolled while I was talking.",
+    "expect": { "tier": "clean" },
+    "notes": "Clean I-statement, no flags."
+  },
+  {
+    "id": "M-002",
+    "input": "I never feel like you have my back.",
+    "expect": { "tier": "clean" },
+    "notes": "Self-reference exemption: 'I never feel' is not absolutism per docs/10."
+  },
+  {
+    "id": "M-003",
+    "input": "You're such a jerk.",
+    "expect": {
+      "tier": "tier_3",
+      "must_have_flag_types": ["name_calling"]
+    },
+    "notes": "Direct name-calling (you + jerk within 3 tokens) → tier_3 hard block."
+  },
+  {
+    "id": "M-004",
+    "input": "You always do this. You never listen.",
+    "expect": {
+      "tier": "tier_2",
+      "must_have_flag_types": ["absolutism"]
+    },
+    "notes": "Two absolutism markers without contempt → tier_2 needs_escalation."
+  },
+  {
+    "id": "M-005",
+    "input": "What is wrong with you?!",
+    "expect": {
+      "tier": "tier_3",
+      "must_have_flag_types": ["contempt_phrase"]
+    },
+    "notes": "Classic contempt phrase → tier_3 regardless of score."
+  },
+  {
+    "id": "M-006",
+    "input": "I know you didn't mean it that way, but I felt hurt.",
+    "expect": { "tier": "clean" },
+    "notes": "Owns the feeling, gives benefit of doubt. Clean."
+  },
+  {
+    "id": "M-007",
+    "input": "Whatever, I don't care anymore.",
+    "expect": {
+      "tier": "tier_1"
+    },
+    "notes": "Mild defensiveness opener; passes through to translator with light banner."
+  },
+  {
+    "id": "M-008",
+    "input": "You're so selfish you only think about yourself.",
+    "expect": {
+      "tier": "tier_3",
+      "must_have_flag_types": ["character_attack"]
+    },
+    "notes": "Character attack pattern."
+  },
+  {
+    "id": "M-009",
+    "input": "You think I don't see what you're doing here?",
+    "expect": {
+      "tier": "tier_2",
+      "must_have_flag_types": ["mind_reading"]
+    },
+    "notes": "Mind-reading pattern → tier_2."
+  },
+  {
+    "id": "M-010",
+    "input": "Why do I always have to be the one who reaches out first?",
+    "expect": { "tier": "clean" },
+    "notes": "Self-reference frame ('why do I'). Not absolutism per docs/10 exemption."
+  },
+  {
+    "id": "M-011",
+    "input": "I'm overwhelmed and I need a few minutes before we keep going.",
+    "expect": { "tier": "clean" },
+    "notes": "Healthy boundary. No flags."
+  },
+  {
+    "id": "M-012",
+    "input": "you're being ridiculous about this",
+    "expect": {
+      "tier": "tier_3",
+      "must_have_flag_types": ["character_attack"]
+    },
+    "notes": "you're being X — character attack."
+  },
+  {
+    "id": "M-013",
+    "input": "It's not my fault you didn't ask for help.",
+    "expect": {
+      "tier": "tier_1",
+      "must_have_flag_types": ["defensiveness"]
+    },
+    "notes": "Defensiveness opener within first 12 words."
+  },
+  {
+    "id": "M-014",
+    "input": "I'd like us to talk about how we make decisions about money.",
+    "expect": { "tier": "clean" },
+    "notes": "Topic-framing, no attack. Clean."
+  },
+  {
+    "id": "M-015",
+    "input": "You always do this you never listen and you're so dismissive.",
+    "expect": {
+      "tier": "tier_3"
+    },
+    "notes": "Multiple absolutisms + character attack stacks → tier_3 (score >= 7)."
+  }
+]
