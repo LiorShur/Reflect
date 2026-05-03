@@ -19,6 +19,9 @@
           },
           "active_session_id": {
             ".write": false
+          },
+          "last_conflict_at": {
+            ".write": false
           }
         },
         "settings": {

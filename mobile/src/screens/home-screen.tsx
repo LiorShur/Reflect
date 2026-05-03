@@ -13,6 +13,10 @@ import {
   useActiveSessionId,
   usePartnerSessionPresence,
 } from '../hooks/use-session';
+import {
+  appreciationSuppressed,
+  useLastConflictAt,
+} from '../hooks/use-last-conflict-at';
 
 export default function HomeScreen() {
   const auth = useAuthState();
@@ -25,6 +29,7 @@ export default function HomeScreen() {
     activeSessionId,
     partnerUid,
   );
+  const lastConflictAt = useLastConflictAt(uid);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [creating, setCreating] = useState(false);
@@ -35,6 +40,12 @@ export default function HomeScreen() {
   const unpaired = pair.ready && pair.partnerUid === null;
   const tierLow =
     screening.ready && screening.completed && screening.tier === 'low';
+
+  // R5 — appreciation suppression. Within 4h of a conflict-mode session
+  // ending, hide the send-appreciation entry; replace with a gentle
+  // explanation. The receiving feed remains accessible regardless.
+  const appreciationOff = appreciationSuppressed(lastConflictAt);
+  const showAppreciationLinks = signedIn && paired && screeningDone;
 
   // CTA priority (one at a time):
   //  1. screening — docs/07 critical principle 1
@@ -149,6 +160,34 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
       ) : null}
+
+      {showAppreciationLinks ? (
+        <>
+          {appreciationOff ? (
+            <Text style={styles.suppressedNote}>
+              Appreciation prompt is paused for a few hours after a session.
+              Space first.
+            </Text>
+          ) : (
+            <Pressable
+              style={[styles.button, styles.buttonSecondary]}
+              onPress={() => navigation.navigate('Appreciation')}
+            >
+              <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>
+                Send an appreciation
+              </Text>
+            </Pressable>
+          )}
+          <Pressable
+            style={[styles.button, styles.buttonSecondary]}
+            onPress={() => navigation.navigate('AppreciationFeed')}
+          >
+            <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>
+              Appreciation feed
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -202,4 +241,17 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.4 },
   buttonLabel: { color: 'white', fontWeight: '600' },
+  buttonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  buttonLabelSecondary: { color: '#0f172a' },
+  suppressedNote: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    fontSize: 13,
+    opacity: 0.65,
+    textAlign: 'center',
+  },
 });

@@ -7,6 +7,8 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
+import AppreciationScreen from './src/screens/appreciation-screen';
+import AppreciationFeedScreen from './src/screens/appreciation-feed-screen';
 import HomeScreen from './src/screens/home-screen';
 import PairingScreen from './src/screens/pairing-screen';
 import ScreeningScreen from './src/screens/screening-screen';
@@ -21,6 +23,8 @@ export type RootStackParamList = {
   Screening: undefined;
   Session: { sessionId: string };
   Settings: undefined;
+  Appreciation: undefined;
+  AppreciationFeed: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -82,6 +86,16 @@ export default function App() {
             name="Settings"
             component={SettingsScreen}
             options={{ headerTitle: 'Settings' }}
+          />
+          <Stack.Screen
+            name="Appreciation"
+            component={AppreciationScreen}
+            options={{ headerTitle: 'Appreciation' }}
+          />
+          <Stack.Screen
+            name="AppreciationFeed"
+            component={AppreciationFeedScreen}
+            options={{ headerTitle: 'Appreciation feed' }}
           />
         </Stack.Navigator>
         <StatusBar style="auto" />
