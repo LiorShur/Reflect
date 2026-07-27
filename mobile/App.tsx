@@ -5,7 +5,13 @@ import {
   NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import AppreciationScreen from './src/screens/appreciation-screen';
 import AppreciationFeedScreen from './src/screens/appreciation-feed-screen';
@@ -14,8 +20,9 @@ import PairingScreen from './src/screens/pairing-screen';
 import ScreeningScreen from './src/screens/screening-screen';
 import SessionScreen from './src/screens/session-screen';
 import SettingsScreen from './src/screens/settings-screen';
+import SignInScreen from './src/screens/sign-in-screen';
 import QuickExitButton from './src/components/quick-exit-button';
-import { useAutoSignIn } from './src/hooks/use-auto-sign-in';
+import { useAuthState } from './src/hooks/use-auth-state';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -45,61 +52,80 @@ function HeaderSettingsLink() {
   );
 }
 
+// Top-level auth gate. Unsigned → SignInScreen (full screen, no
+// navigator). Signed → normal stack. onAuthStateChanged inside
+// useAuthState flips this automatically after sign-in / sign-out.
+// This replaces the pre-A1 anonymous auto-sign-in bridge.
 export default function App() {
-  useAutoSignIn();
+  const auth = useAuthState();
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerTitle: 'Reflect' }}>
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ headerRight: () => <HeaderSettingsLink /> }}
-          />
-          <Stack.Screen
-            name="Pairing"
-            component={PairingScreen}
-            options={{ headerTitle: 'Pair' }}
-          />
-          <Stack.Screen
-            name="Screening"
-            component={ScreeningScreen}
-            options={{
-              headerTitle: 'Quick check-in',
-              // docs/07 § Quick-exit pattern requires a direct
-              // "Leave now" button on every screening screen, not
-              // just a path through Settings.
-              headerRight: () => <QuickExitButton variant="header" />,
-            }}
-          />
-          <Stack.Screen
-            name="Session"
-            component={SessionScreen}
-            options={{
-              headerTitle: 'Session',
-              // Sessions are equally sensitive — surface "Leave now"
-              // on the header without requiring a Settings detour.
-              headerRight: () => <QuickExitButton variant="header" />,
-            }}
-          />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{ headerTitle: 'Settings' }}
-          />
-          <Stack.Screen
-            name="Appreciation"
-            component={AppreciationScreen}
-            options={{ headerTitle: 'Appreciation' }}
-          />
-          <Stack.Screen
-            name="AppreciationFeed"
-            component={AppreciationFeedScreen}
-            options={{ headerTitle: 'Appreciation feed' }}
-          />
-        </Stack.Navigator>
-        <StatusBar style="auto" />
-      </NavigationContainer>
+      {!auth.ready ? (
+        <View style={styles.center}>
+          <ActivityIndicator />
+        </View>
+      ) : 'error' in auth ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>
+            App isn&apos;t configured. Missing Firebase credentials.
+          </Text>
+        </View>
+      ) : auth.user === null ? (
+        <SignInScreen />
+      ) : (
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerTitle: 'Reflect' }}>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ headerRight: () => <HeaderSettingsLink /> }}
+            />
+            <Stack.Screen
+              name="Pairing"
+              component={PairingScreen}
+              options={{ headerTitle: 'Pair' }}
+            />
+            <Stack.Screen
+              name="Screening"
+              component={ScreeningScreen}
+              options={{
+                headerTitle: 'Quick check-in',
+                // docs/07 § Quick-exit pattern requires a direct
+                // "Leave now" button on every screening screen, not
+                // just a path through Settings.
+                headerRight: () => <QuickExitButton variant="header" />,
+              }}
+            />
+            <Stack.Screen
+              name="Session"
+              component={SessionScreen}
+              options={{
+                headerTitle: 'Session',
+                // Sessions are equally sensitive — surface "Leave now"
+                // on the header without requiring a Settings detour.
+                headerRight: () => <QuickExitButton variant="header" />,
+              }}
+            />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{ headerTitle: 'Settings' }}
+            />
+            <Stack.Screen
+              name="Appreciation"
+              component={AppreciationScreen}
+              options={{ headerTitle: 'Appreciation' }}
+            />
+            <Stack.Screen
+              name="AppreciationFeed"
+              component={AppreciationFeedScreen}
+              options={{ headerTitle: 'Appreciation feed' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      )}
+      <StatusBar style="auto" />
     </SafeAreaProvider>
   );
 }
@@ -107,4 +133,11 @@ export default function App() {
 const styles = StyleSheet.create({
   headerLink: { paddingHorizontal: 8, paddingVertical: 4 },
   headerLinkLabel: { fontSize: 15 },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  errorText: { fontSize: 15, color: '#b91c1c', textAlign: 'center' },
 });
