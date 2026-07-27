@@ -1,0 +1,9 @@
+title: Reflect
+description: >-
+  A quieter way to have the conversations that matter.
+theme: jekyll-theme-minimal
+show_downloads: false
+markdown: kramdown
+
+# Kept out of the docs site: repo-internal design specs live in /docs.
+# GitHub Pages is configured to serve this /site folder only.
