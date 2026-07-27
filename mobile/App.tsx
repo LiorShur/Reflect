@@ -15,14 +15,21 @@ import {
 
 import AppreciationScreen from './src/screens/appreciation-screen';
 import AppreciationFeedScreen from './src/screens/appreciation-feed-screen';
+import FeedbackScreen from './src/screens/feedback-screen';
 import HomeScreen from './src/screens/home-screen';
 import PairingScreen from './src/screens/pairing-screen';
+import ResourcesScreen from './src/screens/resources-screen';
 import ScreeningScreen from './src/screens/screening-screen';
 import SessionScreen from './src/screens/session-screen';
 import SettingsScreen from './src/screens/settings-screen';
 import SignInScreen from './src/screens/sign-in-screen';
 import QuickExitButton from './src/components/quick-exit-button';
 import { useAuthState } from './src/hooks/use-auth-state';
+import { initSentry, wrap as sentryWrap } from './src/sentry';
+
+// Init Sentry as early as possible so bootstrap errors are captured.
+// No-op when EXPO_PUBLIC_SENTRY_DSN isn't set.
+initSentry();
 
 export type RootStackParamList = {
   Home: undefined;
@@ -32,6 +39,8 @@ export type RootStackParamList = {
   Settings: undefined;
   Appreciation: undefined;
   AppreciationFeed: undefined;
+  Feedback: undefined;
+  Resources: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -56,7 +65,7 @@ function HeaderSettingsLink() {
 // navigator). Signed → normal stack. onAuthStateChanged inside
 // useAuthState flips this automatically after sign-in / sign-out.
 // This replaces the pre-A1 anonymous auto-sign-in bridge.
-export default function App() {
+function App() {
   const auth = useAuthState();
 
   return (
@@ -122,6 +131,16 @@ export default function App() {
               component={AppreciationFeedScreen}
               options={{ headerTitle: 'Appreciation feed' }}
             />
+            <Stack.Screen
+              name="Feedback"
+              component={FeedbackScreen}
+              options={{ headerTitle: 'Send feedback' }}
+            />
+            <Stack.Screen
+              name="Resources"
+              component={ResourcesScreen}
+              options={{ headerTitle: 'Support' }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
       )}
@@ -129,6 +148,11 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+// Wrap the whole app in Sentry's error boundary so runtime crashes in
+// the React tree get captured. Safe when Sentry is not configured —
+// wrap becomes an identity function via our sentry.ts shim behavior.
+export default sentryWrap(App);
 
 const styles = StyleSheet.create({
   headerLink: { paddingHorizontal: 8, paddingVertical: 4 },

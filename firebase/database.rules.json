@@ -163,6 +163,11 @@
       ".write": false
     },
 
+    "feedback": {
+      ".read": false,
+      ".write": false
+    },
+
     "appreciation_feed": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",

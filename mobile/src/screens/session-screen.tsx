@@ -716,6 +716,7 @@ function InTurnView({
         topic={topic}
         initialText={speakerDraft.raw ?? ''}
         moderatorWarning={deriveSpeakerWarning(latestFlag)}
+        showResources={showResourcesForFlag(latestFlag)}
       />
     );
   }
@@ -731,12 +732,16 @@ function ComposeView({
   topic,
   initialText,
   moderatorWarning,
+  showResources,
 }: {
   sessionId: string;
   topic: string;
   initialText: string;
   moderatorWarning: string | null;
+  showResources: boolean;
 }) {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState(false);
 
@@ -784,6 +789,18 @@ function ComposeView({
           <Text style={styles.warningLabel}>{moderatorWarning}</Text>
         </View>
       ) : null}
+      {showResources ? (
+        <Pressable
+          style={styles.cue}
+          onPress={() => navigation.navigate('Resources')}
+          accessibilityRole="link"
+        >
+          <Text style={styles.cueLabel}>
+            If you or someone you love needs to talk to a person, tap here to
+            see support resources.
+          </Text>
+        </Pressable>
+      ) : null}
       <TextInput
         value={text}
         onChangeText={setText}
@@ -820,6 +837,10 @@ interface ModeratorFlag {
   reason?: string | null;
   suggestion?: string | null;
   escalated?: boolean;
+  // S7 (light) — set when a disclosure phrase matched; the ComposeView
+  // shows a gentle "resources available" cue instead of the harsh-
+  // startup warning.
+  show_resources?: boolean;
 }
 
 // Subscribes to /sessions/{sid}/flags and returns the most recent
@@ -868,10 +889,23 @@ function useLatestSpeakerFlag(
 // and ComposeView re-mounts immediately after — so the timestamp
 // gives a robust "this attempt was just blocked" signal that fades
 // naturally as the speaker takes longer to retry.
+// S7 (light) — the compose banner links to Resources when the most
+// recent flag carries show_resources. Recency window matches
+// deriveSpeakerWarning so the cue fades naturally.
+function showResourcesForFlag(flag: ModeratorFlag | null): boolean {
+  if (!flag || !flag.created_at) return false;
+  const ageMs = Date.now() - flag.created_at;
+  if (ageMs > 5 * 60_000) return false;
+  return flag.show_resources === true || flag.type === 'disclosure';
+}
+
 function deriveSpeakerWarning(flag: ModeratorFlag | null): string | null {
   if (!flag || !flag.created_at) return null;
   const ageMs = Date.now() - flag.created_at;
   if (ageMs > 5 * 60_000) return null;
+  // Disclosure flags render as a separate cue (resource link) rather
+  // than a "harsh startup" warning — the message isn't being blocked.
+  if (flag.type === 'disclosure') return null;
   // AI2: prefer Claude's specific suggestion when the flag was
   // produced by an escalation. Falls back to reason, then to the
   // generic message for fast-path-only blocks.

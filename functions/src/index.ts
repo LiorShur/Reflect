@@ -15,6 +15,7 @@ export { createPairCode } from './pairing/create-pair-code';
 export { redeemPairCode } from './pairing/redeem-pair-code';
 export { submitScreening } from './screening/submit-screening';
 export { deleteUserData } from './auth/delete-user-data';
+export { submitFeedback } from './auth/submit-feedback';
 export { createSession } from './sessions/create-session';
 export { proposeTopic, acceptTopic, reframeTopic } from './sessions/topic';
 export { clearStaleSession } from './sessions/clear-stale-session';

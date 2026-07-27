@@ -15,13 +15,18 @@ import {
   type AuthError,
 } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import type { RootStackParamList } from '../../App';
 import QuickExitButton from '../components/quick-exit-button';
 import { tryInitFirebase } from '../firebase';
 import { useAuthState } from '../hooks/use-auth-state';
 
 export default function SettingsScreen() {
   const auth = useAuthState();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [busy, setBusy] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [reauthPassword, setReauthPassword] = useState('');
@@ -114,6 +119,34 @@ export default function SettingsScreen() {
           onPress={onSignOut}
         >
           <Text style={styles.secondaryLabel}>Sign out</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.heading}>Feedback</Text>
+        <Text style={styles.paragraph}>
+          Anything confusing, broken, or missing? We&apos;re reading every note
+          during the pilot.
+        </Text>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate('Feedback')}
+        >
+          <Text style={styles.secondaryLabel}>Send feedback</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.heading}>Support &amp; safety</Text>
+        <Text style={styles.paragraph}>
+          If you or someone you love needs to talk to a person, help lines are
+          here for you.
+        </Text>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate('Resources')}
+        >
+          <Text style={styles.secondaryLabel}>See support resources</Text>
         </Pressable>
       </View>
 

@@ -3,6 +3,7 @@ import { logger } from 'firebase-functions/v2';
 import { onValueWritten } from 'firebase-functions/v2/database';
 
 import { ANTHROPIC_API_KEY, callClaude } from '../anthropic/client';
+import { detectDisclosure } from '../moderator/disclosure-patterns';
 import { scoreFastPath, type SpeakerBaseline } from '../moderator/score';
 import { trace } from '../telemetry/trace';
 import {
@@ -96,6 +97,26 @@ export const onSpeakerDraftWritten = onValueWritten(
       baseline = val ?? undefined;
     }
     const modResult = scoreFastPath(rawText, baseline);
+
+    // S7 (light) — disclosure detection. Independent of the tier
+    // pipeline: even a "clean" message can contain a disclosure the
+    // speaker wants to make. When detected, push a flag targeted at
+    // the speaker so their UI can surface the resource card. Does
+    // NOT block the message.
+    const disclosureMatch = detectDisclosure(rawText);
+    if (disclosureMatch) {
+      await db.ref(`sessions/${sessionId}/flags`).push({
+        type: 'disclosure',
+        severity: 3,
+        target_uid: currentTurn.speaker_uid ?? null,
+        created_at: Date.now(),
+        show_resources: true,
+      });
+      logger.info('disclosure pattern matched', {
+        session_id: sessionId,
+        pattern: disclosureMatch.pattern,
+      });
+    }
 
     // 2. Moderator escalation (AI2). Only fires on fast-path tier_2;
     // fast-path tier_3 is deterministic (clear contempt patterns) so
