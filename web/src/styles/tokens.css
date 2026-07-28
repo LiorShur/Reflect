@@ -1,0 +1,108 @@
+/* Design tokens for Reflect.
+ *
+ * Warm, calm, human. Sage-green primary on warm cream. Every semantic
+ * value flows through a CSS variable so per-component CSS modules
+ * reference tokens, not hex codes.
+ *
+ * Dark mode: opt into via prefers-color-scheme by default; overridden
+ * by data-theme="dark" | "light" if we ever add a manual toggle.
+ */
+
+:root {
+  --color-bg:            #FAF7F2;
+  --color-bg-elevated:   #FFFFFF;
+  --color-bg-subtle:     #F1EBE0;
+
+  --color-text:          #2C2419;
+  --color-text-muted:    #6B5F52;
+  --color-text-subtle:   #948577;
+
+  --color-primary:       #7A9E7E;
+  --color-primary-hover: #688A6C;
+  --color-primary-soft:  #E3EDDD;
+  --color-on-primary:    #FFFFFF;
+
+  --color-accent:        #C97B63;
+  --color-danger:        #A85A44;
+  --color-danger-soft:   #F5DFD6;
+
+  --color-border:        #E8DFCE;
+  --color-focus-ring:    rgba(122, 158, 126, 0.35);
+
+  --color-shadow:        rgba(60, 45, 30, 0.08);
+
+  --font-serif:  'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-sans:   'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --radius-sm:   6px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px var(--color-shadow);
+  --shadow-md: 0 2px 8px var(--color-shadow);
+  --shadow-lg: 0 8px 24px var(--color-shadow);
+
+  --duration-fast: 120ms;
+  --duration-med:  240ms;
+  --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg:            #1F1A17;
+    --color-bg-elevated:   #2A2420;
+    --color-bg-subtle:     #2F2925;
+
+    --color-text:          #F0E7D9;
+    --color-text-muted:    #B8A896;
+    --color-text-subtle:   #8A7B69;
+
+    --color-primary:       #A3C9A6;
+    --color-primary-hover: #B8DBBB;
+    --color-primary-soft:  #364138;
+    --color-on-primary:    #1F1A17;
+
+    --color-accent:        #E39B85;
+    --color-danger:        #E39586;
+    --color-danger-soft:   #3E2A24;
+
+    --color-border:        #3A322C;
+    --color-focus-ring:    rgba(163, 201, 166, 0.4);
+
+    --color-shadow:        rgba(0, 0, 0, 0.35);
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg:            #1F1A17;
+  --color-bg-elevated:   #2A2420;
+  --color-bg-subtle:     #2F2925;
+  --color-text:          #F0E7D9;
+  --color-text-muted:    #B8A896;
+  --color-text-subtle:   #8A7B69;
+  --color-primary:       #A3C9A6;
+  --color-primary-hover: #B8DBBB;
+  --color-primary-soft:  #364138;
+  --color-on-primary:    #1F1A17;
+  --color-accent:        #E39B85;
+  --color-danger:        #E39586;
+  --color-danger-soft:   #3E2A24;
+  --color-border:        #3A322C;
+  --color-focus-ring:    rgba(163, 201, 166, 0.4);
+  --color-shadow:        rgba(0, 0, 0, 0.35);
+}

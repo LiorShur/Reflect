@@ -5,6 +5,7 @@
   "description": "Couples therapy app using Gottman speaker-listener technique with AI moderation",
   "workspaces": [
     "mobile",
+    "web",
     "functions",
     "eval"
   ],
