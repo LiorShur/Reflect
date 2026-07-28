@@ -59,8 +59,11 @@ export function SettingsScreen() {
         'deleteUserData',
       );
       await fn({});
-      // onAuthStateChanged will fire with null; AuthGate flips us to
-      // /sign-in automatically.
+      // Server has already destroyed the Auth user, but the client's
+      // cached ID token won't know until it tries to refresh (up to
+      // an hour). Explicit signOut fires onAuthStateChanged(null)
+      // immediately so AuthGate flips us to /sign-in right away.
+      await signOut(fb.auth);
     } catch (err) {
       setError(friendlyError(err));
     } finally {

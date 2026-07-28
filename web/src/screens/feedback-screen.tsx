@@ -114,9 +114,19 @@ export function FeedbackScreen() {
   );
 }
 
+// Firebase callable errors carry `code` (e.g. "functions/internal") and
+// `message` separately. Show both when they diverge so a pilot bug
+// report includes enough context for us to look up the right log line.
 function readableError(err: unknown): string {
-  if (err && typeof err === 'object' && 'message' in err) {
-    return String((err as { message: unknown }).message);
+  if (err && typeof err === 'object') {
+    const code = 'code' in err ? String((err as { code: unknown }).code) : '';
+    const message =
+      'message' in err ? String((err as { message: unknown }).message) : '';
+    if (code && message && message.toLowerCase() !== code.split('/').pop()) {
+      return `${message} (${code})`;
+    }
+    if (message) return `${message}${code ? ` [${code}]` : ''}`;
+    if (code) return `Server error: ${code}`;
   }
   return String(err);
 }
