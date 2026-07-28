@@ -1,0 +1,64 @@
+# Builds and deploys the /site folder to GitHub Pages.
+#
+# GitHub Pages' "Deploy from a branch" mode only allows the repo root
+# or /docs as the source. We keep /docs for internal design specs
+# (private-adjacent notes that shouldn't be publicly served) and
+# /site for the public-facing legal + support pages, so we use the
+# Actions deployment mode instead — which serves any folder.
+#
+# Prereqs: repo Settings → Pages → Source: **GitHub Actions**.
+# After the first successful run the site publishes at
+# https://<owner>.github.io/<repo>/.
+
+name: Deploy /site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+      - name: Install Jekyll
+        run: |
+          gem install jekyll -v '~> 4.3'
+          gem install jekyll-theme-minimal -v '~> 0.2'
+      - name: Build site
+        working-directory: site
+        run: |
+          jekyll build --destination ../_site --baseurl "/${GITHUB_REPOSITORY#*/}"
+        env:
+          JEKYLL_ENV: production
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
