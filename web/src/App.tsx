@@ -13,6 +13,7 @@ import { SettingsScreen } from './screens/settings-screen';
 import { FeedbackScreen } from './screens/feedback-screen';
 import { ResourcesScreen } from './screens/resources-screen';
 import { ProfileScreen } from './screens/profile-screen';
+import { PairScreen } from './screens/pair-screen';
 import styles from './App.module.css';
 
 export function App() {
@@ -45,6 +46,7 @@ function AuthGate() {
       <Route path="/sign-in" element={<Navigate to="/" replace />} />
       <Route path="/" element={<HomeScreen user={user} />} />
       <Route path="/settings" element={<SettingsScreen />} />
+      <Route path="/pair" element={<PairScreen />} />
       <Route path="/feedback" element={<FeedbackScreen />} />
       <Route path="/resources" element={<ResourcesScreen />} />
       <Route path="/profile" element={<ProfileScreen />} />
