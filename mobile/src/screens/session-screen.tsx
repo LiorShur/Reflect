@@ -1754,6 +1754,25 @@ function WrapUpView({
 
 const styles = StyleSheet.create({
   container: { padding: 24 },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  tag: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+  },
+  tagActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+  },
+  tagLabel: { fontSize: 14, color: '#475569' },
+  tagLabelActive: { color: '#1d4ed8', fontWeight: '600' },
   center: {
     flex: 1,
     alignItems: 'center',
