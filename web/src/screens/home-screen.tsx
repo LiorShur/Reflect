@@ -133,7 +133,14 @@ export function HomeScreen({ user }: { user: User }) {
               Appreciation prompt is paused for a few hours after a session.
               Space first.
             </p>
-          ) : null}
+          ) : (
+            <Link to="/appreciation" className={styles.secondaryLink}>
+              Send an appreciation
+            </Link>
+          )}
+          <Link to="/appreciation-feed" className={styles.secondaryLink}>
+            Appreciation feed
+          </Link>
         </div>
       ) : null}
     </AppShell>

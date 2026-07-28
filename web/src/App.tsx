@@ -16,6 +16,8 @@ import { ProfileScreen } from './screens/profile-screen';
 import { PairScreen } from './screens/pair-screen';
 import { ScreeningScreen } from './screens/screening-screen';
 import { SessionScreen } from './screens/session-screen';
+import { AppreciationScreen } from './screens/appreciation-screen';
+import { AppreciationFeedScreen } from './screens/appreciation-feed-screen';
 import styles from './App.module.css';
 
 export function App() {
@@ -51,6 +53,8 @@ function AuthGate() {
       <Route path="/pair" element={<PairScreen />} />
       <Route path="/screening" element={<ScreeningScreen />} />
       <Route path="/session/:sessionId" element={<SessionScreen />} />
+      <Route path="/appreciation" element={<AppreciationScreen />} />
+      <Route path="/appreciation-feed" element={<AppreciationFeedScreen />} />
       <Route path="/feedback" element={<FeedbackScreen />} />
       <Route path="/resources" element={<ResourcesScreen />} />
       <Route path="/profile" element={<ProfileScreen />} />
