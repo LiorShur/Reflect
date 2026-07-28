@@ -4,12 +4,17 @@
   "private": true,
   "main": "./index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --dev-client",
+    "start:expo-go": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "build:android:dev": "eas build --profile development --platform android",
+    "build:android:preview": "eas build --profile preview --platform android",
+    "build:ios:dev": "eas build --profile development --platform ios",
+    "build:ios:preview": "eas build --profile preview --platform ios"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
