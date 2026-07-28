@@ -30,7 +30,7 @@ jobs:
       - name: Install firebase-tools
         run: npm install -g firebase-tools@^13.0.0
 
-      - name: Typecheck (root projects: functions + eval)
+      - name: 'Typecheck (root projects: functions + eval)'
         run: npm run typecheck
 
       - name: Typecheck (mobile)
