@@ -4,8 +4,7 @@ import { off, onValue, ref } from 'firebase/database';
 import { tryInitFirebase } from '../firebase';
 
 export type PairState =
-  | { ready: false }
-  | { ready: true; partnerUid: string | null };
+  { ready: false } | { ready: true; partnerUid: string | null };
 
 // Subscribes to users/{uid}/profile/partner_uid in RTDB so the UI
 // reactively reflects "paired" / "unpaired". Returns

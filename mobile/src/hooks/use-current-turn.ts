@@ -71,8 +71,7 @@ export interface CurrentTurn {
 }
 
 export type CurrentTurnView =
-  | { ready: false }
-  | { ready: true; turn: CurrentTurn | null };
+  { ready: false } | { ready: true; turn: CurrentTurn | null };
 
 export function useCurrentTurn(sessionId: string | null): CurrentTurnView {
   const [state, setState] = useState<CurrentTurnView>({ ready: false });

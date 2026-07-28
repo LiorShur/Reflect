@@ -20,8 +20,7 @@ export interface SessionSummary {
 }
 
 export type SessionSummaryView =
-  | { ready: false }
-  | { ready: true; summary: SessionSummary | null };
+  { ready: false } | { ready: true; summary: SessionSummary | null };
 
 export function useSummary(sessionId: string | null): SessionSummaryView {
   const [state, setState] = useState<SessionSummaryView>({ ready: false });
