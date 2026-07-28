@@ -20,8 +20,7 @@ export interface AppreciationEntry {
 }
 
 export type AppreciationFeedView =
-  | { ready: false }
-  | { ready: true; entries: AppreciationEntry[] };
+  { ready: false } | { ready: true; entries: AppreciationEntry[] };
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 

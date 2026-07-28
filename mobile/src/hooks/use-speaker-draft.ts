@@ -14,8 +14,7 @@ export interface SpeakerDraft {
 }
 
 export type SpeakerDraftView =
-  | { ready: false }
-  | { ready: true; draft: SpeakerDraft | null };
+  { ready: false } | { ready: true; draft: SpeakerDraft | null };
 
 export function useSpeakerDraft(
   sessionId: string | null,
