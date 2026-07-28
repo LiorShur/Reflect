@@ -1,9 +1,9 @@
-.shell {
+.splash {
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-5);
   background:
     radial-gradient(
       ellipse at top,
@@ -12,58 +12,37 @@
     );
 }
 
-.hero {
-  width: 100%;
-  max-width: 28rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.title {
-  font-size: 3rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
-}
-
-.tagline {
-  font-size: 1.125rem;
-  color: var(--color-text-muted);
+.splashDim {
+  color: var(--color-text-subtle);
   font-family: var(--font-serif);
   font-style: italic;
 }
 
-.card {
-  margin-top: var(--space-5);
+.splashCard {
+  max-width: 24rem;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5) var(--space-5);
+  padding: var(--space-5);
   box-shadow: var(--shadow-md);
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.cardHeading {
-  margin-bottom: var(--space-2);
+.splashCard h4 {
   color: var(--color-text);
 }
 
-.cardBody {
+.splashCard p {
   color: var(--color-text-muted);
   font-size: 0.95rem;
+  line-height: 1.5;
 }
 
-.cardBody code {
+.splashCard code {
   background: var(--color-bg-subtle);
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
   font-size: 0.9em;
-}
-
-.ready {
-  color: var(--color-primary);
-  font-weight: 500;
-  text-align: center;
 }

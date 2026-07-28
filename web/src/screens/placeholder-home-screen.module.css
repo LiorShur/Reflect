@@ -1,0 +1,35 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+  background:
+    radial-gradient(
+      ellipse at top,
+      var(--color-primary-soft) 0%,
+      var(--color-bg) 60%
+    );
+}
+
+.card {
+  width: 100%;
+  max-width: 26rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heading {
+  font-family: var(--font-serif);
+}
+
+.body {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
