@@ -135,15 +135,13 @@ export default function ScreeningScreen() {
 function IntroView({ onStart }: { onStart: () => void }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Before we pair you up</Text>
+      <Text style={styles.heading}>A quick check-in first</Text>
       <Text style={styles.paragraph}>
-        We ask everyone a short set of questions to make sure this app is the
-        right fit for your situation. Your answers stay on your device only —
-        your partner never sees them.
+        A short set of questions helps us tune Reflect to how things are for you
+        right now. Your answers stay on your device — your partner never sees
+        them, and we never store the raw responses.
       </Text>
-      <Text style={styles.paragraph}>
-        There are 11 questions. It takes about two minutes.
-      </Text>
+      <Text style={styles.paragraph}>Eleven questions, about two minutes.</Text>
       <Pressable style={styles.primaryButton} onPress={onStart}>
         <Text style={styles.primaryLabel}>Start</Text>
       </Pressable>
