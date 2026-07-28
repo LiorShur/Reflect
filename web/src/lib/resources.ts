@@ -48,3 +48,14 @@ export function ensureHttps(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   return `https://${url}`;
 }
+
+export function resourceForLocale(
+  localeCode: string | null | undefined,
+): Resource {
+  if (!localeCode) return DEFAULT_RESOURCE;
+  const region = localeCode.split('-').pop()?.toUpperCase();
+  if (region && RESOURCES[region]) {
+    return RESOURCES[region];
+  }
+  return DEFAULT_RESOURCE;
+}

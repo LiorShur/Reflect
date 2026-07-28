@@ -75,3 +75,25 @@
   background: var(--color-primary-hover);
   color: var(--color-on-primary);
 }
+
+.errorBanner {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  margin-bottom: var(--space-4);
+}
+
+.appreciationRow {
+  margin-top: var(--space-4);
+}
+
+.suppressedNote {
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-style: italic;
+}
