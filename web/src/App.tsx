@@ -8,7 +8,11 @@ import {
 
 import { useAuthState } from './hooks/use-auth-state';
 import { SignInScreen } from './screens/sign-in-screen';
-import { PlaceholderHomeScreen } from './screens/placeholder-home-screen';
+import { HomeScreen } from './screens/home-screen';
+import { SettingsScreen } from './screens/settings-screen';
+import { FeedbackScreen } from './screens/feedback-screen';
+import { ResourcesScreen } from './screens/resources-screen';
+import { ProfileScreen } from './screens/profile-screen';
 import styles from './App.module.css';
 
 export function App() {
@@ -27,18 +31,24 @@ function AuthGate() {
 
   const { user } = auth;
 
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/sign-in" element={<SignInScreen />} />
+        <Route path="/*" element={<RequireSignIn />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
-      <Route
-        path="/sign-in"
-        element={user ? <Navigate to="/" replace /> : <SignInScreen />}
-      />
-      <Route
-        path="/*"
-        element={
-          user ? <PlaceholderHomeScreen user={user} /> : <RequireSignIn />
-        }
-      />
+      <Route path="/sign-in" element={<Navigate to="/" replace />} />
+      <Route path="/" element={<HomeScreen user={user} />} />
+      <Route path="/settings" element={<SettingsScreen />} />
+      <Route path="/feedback" element={<FeedbackScreen />} />
+      <Route path="/resources" element={<ResourcesScreen />} />
+      <Route path="/profile" element={<ProfileScreen />} />
+      <Route path="/*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
