@@ -1,0 +1,64 @@
+.section {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.section:last-of-type {
+  border-bottom: none;
+}
+
+.heading {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.paragraph {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-weight: 500;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.linkButton:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+
+.errorBanner {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: 0.9rem;
+}
+
+.deleteBlock {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.deleteActions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}

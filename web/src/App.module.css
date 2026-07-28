@@ -1,0 +1,48 @@
+.splash {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background:
+    radial-gradient(
+      ellipse at top,
+      var(--color-primary-soft) 0%,
+      var(--color-bg) 60%
+    );
+}
+
+.splashDim {
+  color: var(--color-text-subtle);
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+.splashCard {
+  max-width: 24rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.splashCard h4 {
+  color: var(--color-text);
+}
+
+.splashCard p {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.splashCard code {
+  background: var(--color-bg-subtle);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+}

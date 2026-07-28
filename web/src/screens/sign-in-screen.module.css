@@ -1,0 +1,124 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  gap: var(--space-6);
+  background:
+    radial-gradient(
+      ellipse at top,
+      var(--color-primary-soft) 0%,
+      var(--color-bg) 60%
+    );
+}
+
+.hero {
+  text-align: center;
+  max-width: 24rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.brand {
+  font-size: 3rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 1.125rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tabRow {
+  display: flex;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-pill);
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover:not([aria-selected='true']) {
+  color: var(--color-text);
+}
+
+.tabActive {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.error {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.footnote {
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+  line-height: 1.5;
+}
+
+.footnote a {
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border);
+  text-underline-offset: 0.15em;
+}
+
+.footnote a:hover {
+  color: var(--color-primary);
+  text-decoration-color: currentColor;
+}

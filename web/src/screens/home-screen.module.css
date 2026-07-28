@@ -1,0 +1,53 @@
+.settingsLink {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.settingsLink:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}
+
+.hero {
+  text-align: center;
+  padding: var(--space-6) 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
+.card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-weight: 500;
+}
+
+.cardBody {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}

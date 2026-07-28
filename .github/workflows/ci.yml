@@ -36,6 +36,9 @@ jobs:
       - name: Typecheck (mobile)
         run: npm --prefix mobile run typecheck
 
+      - name: Typecheck (web)
+        run: npm --prefix web run typecheck
+
       - name: Lint
         run: npm run lint
 
