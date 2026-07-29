@@ -1493,33 +1493,14 @@ function WrapUpView({
           : 'Your partner is reviewing their summary.'}
       </p>
 
-      <p className={[styles.smallLabel, styles.smallLabelTop].join(' ')}>
-        What&apos;s next?
-      </p>
-      <p className={styles.helperLeft}>
-        Pick what fits — both of you can suggest. Tapping again unselects.
-      </p>
-      <div className={styles.tagRow}>
-        {nextActionOptions.map(([value, label]) => {
-          const active = nextAction === value;
-          return (
-            <button
-              key={value}
-              type="button"
-              className={[styles.tag, active ? styles.tagActive : ''].join(' ')}
-              onClick={() => void setNextAction(value)}
-              aria-pressed={active}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
       {partnerUid ? (
         <>
           <p className={[styles.smallLabel, styles.smallLabelTop].join(' ')}>
             One thing you appreciated (optional)
+          </p>
+          <p className={styles.helperLeft}>
+            Small, specific things land the best. Skip it if nothing&apos;s
+            coming to mind.
           </p>
           {appreciationSent ? (
             <p className={styles.helperLeft}>
@@ -1548,6 +1529,29 @@ function WrapUpView({
           )}
         </>
       ) : null}
+
+      <p className={[styles.smallLabel, styles.smallLabelTop].join(' ')}>
+        What&apos;s next?
+      </p>
+      <p className={styles.helperLeft}>
+        Pick what fits — both of you can suggest. Tapping again unselects.
+      </p>
+      <div className={styles.tagRow}>
+        {nextActionOptions.map(([value, label]) => {
+          const active = nextAction === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              className={[styles.tag, active ? styles.tagActive : ''].join(' ')}
+              onClick={() => void setNextAction(value)}
+              aria-pressed={active}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       <button
         type="button"

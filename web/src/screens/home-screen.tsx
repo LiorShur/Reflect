@@ -7,6 +7,7 @@ import { AppShell } from '../components/app-shell';
 import { Button } from '../components/button';
 import { tryInitFirebase } from '../firebase';
 import { usePair } from '../hooks/use-pair';
+import { usePartnerProfile } from '../hooks/use-partner-profile';
 import { useScreening } from '../hooks/use-screening';
 import {
   useActiveSessionId,
@@ -24,6 +25,10 @@ export function HomeScreen({ user }: { user: User }) {
   const screening = useScreening(user.uid);
   const activeSessionId = useActiveSessionId(user.uid);
   const partnerUid = pair.ready ? pair.partnerUid : null;
+  const partnerProfile = usePartnerProfile(partnerUid);
+  const partnerName = partnerProfile.ready
+    ? partnerProfile.profile.displayName
+    : null;
   const partnerInSession = usePartnerSessionPresence(
     activeSessionId,
     partnerUid,
@@ -97,6 +102,9 @@ export function HomeScreen({ user }: { user: User }) {
       <div className={styles.hero}>
         <h1 className={styles.title}>Reflect</h1>
         <p className={styles.subtitle}>{user.displayName ?? user.email}</p>
+        {partnerName ? (
+          <p className={styles.partnerChip}>paired with {partnerName}</p>
+        ) : null}
       </div>
 
       {error ? (
@@ -130,14 +138,13 @@ export function HomeScreen({ user }: { user: User }) {
         <div className={styles.appreciationRow}>
           {appreciationOff ? (
             <p className={styles.suppressedNote}>
-              Appreciation prompt is paused for a few hours after a session.
-              Space first.
+              Give it a few hours after a session before sending an appreciation
+              — space usually helps it land. But it&apos;s your call:
             </p>
-          ) : (
-            <Link to="/appreciation" className={styles.secondaryLink}>
-              Send an appreciation
-            </Link>
-          )}
+          ) : null}
+          <Link to="/appreciation" className={styles.secondaryLink}>
+            Send an appreciation
+          </Link>
           <Link to="/appreciation-feed" className={styles.secondaryLink}>
             Appreciation feed
           </Link>

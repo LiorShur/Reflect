@@ -13,6 +13,7 @@ registerTriggers();
 
 export { createPairCode } from './pairing/create-pair-code';
 export { redeemPairCode } from './pairing/redeem-pair-code';
+export { unpair } from './pairing/unpair';
 export { submitScreening } from './screening/submit-screening';
 export { deleteUserData } from './auth/delete-user-data';
 export { submitFeedback } from './auth/submit-feedback';

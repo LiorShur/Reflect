@@ -153,6 +153,15 @@
       ".write": false
     },
 
+    "public_profiles": {
+      "$uid": {
+        ".read": "auth != null",
+        "display_name": {
+          ".write": "auth != null && auth.uid === $uid && (newData.val() === null || (newData.isString() && newData.val().length > 0 && newData.val().length <= 40))"
+        }
+      }
+    },
+
     "meta": {
       ".read": false,
       ".write": false

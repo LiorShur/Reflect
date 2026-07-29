@@ -31,6 +31,19 @@
   font-size: 1.05rem;
 }
 
+.partnerChip {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  padding: 0.3rem 0.85rem;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-top: var(--space-2);
+}
+
 .card {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);

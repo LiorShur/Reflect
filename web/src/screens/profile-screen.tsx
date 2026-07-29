@@ -39,12 +39,24 @@ export function ProfileScreen() {
     setBusy(true);
     setError(null);
     try {
+      // Write to three places: Firebase Auth displayName (offline
+      // access via currentUser), users/{uid}/profile/display_name
+      // (self-only per rules), and public_profiles/{uid}/display_name
+      // (auth-readable so the paired partner's Home hero can render
+      // "paired with {name}").
       await Promise.all([
         updateProfile(fb.auth.currentUser, { displayName: trimmed }),
         set(
           ref(
             fb.database,
             `users/${fb.auth.currentUser.uid}/profile/display_name`,
+          ),
+          trimmed,
+        ),
+        set(
+          ref(
+            fb.database,
+            `public_profiles/${fb.auth.currentUser.uid}/display_name`,
           ),
           trimmed,
         ),
