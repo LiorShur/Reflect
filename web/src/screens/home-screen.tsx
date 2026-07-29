@@ -12,6 +12,7 @@ import { useScreening } from '../hooks/use-screening';
 import {
   useActiveSessionId,
   usePartnerSessionPresence,
+  useSession,
 } from '../hooks/use-session';
 import {
   appreciationSuppressed,
@@ -23,12 +24,30 @@ export function HomeScreen({ user }: { user: User }) {
   const navigate = useNavigate();
   const pair = usePair(user.uid);
   const screening = useScreening(user.uid);
-  const activeSessionId = useActiveSessionId(user.uid);
+  const rawActiveSessionId = useActiveSessionId(user.uid);
   const partnerUid = pair.ready ? pair.partnerUid : null;
   const partnerProfile = usePartnerProfile(partnerUid);
   const partnerName = partnerProfile.ready
     ? partnerProfile.profile.displayName
     : null;
+  // If the active_session_id pointer still references a session that's
+  // ENDED or WRAP_UP, treat it as no active session. Two reasons:
+  //   - ENDED: server-side null hasn't propagated yet, or the confirm
+  //     trigger raced — otherwise the auto-route below pulls the user
+  //     back into the dead session in a loop from EndedView's "Back
+  //     to home" button.
+  //   - WRAP_UP: user leaving wrap-up voluntarily should stick on
+  //     Home, not get yanked back. If both partners still need to
+  //     confirm, they can re-enter from a Resume card that renders
+  //     for non-ENDED, non-WRAP_UP live states only.
+  const activeSessionView = useSession(rawActiveSessionId);
+  const activeSessionFinished =
+    rawActiveSessionId !== null &&
+    activeSessionView.ready &&
+    activeSessionView.meta !== null &&
+    (activeSessionView.meta.state === 'ENDED' ||
+      activeSessionView.meta.state === 'WRAP_UP');
+  const activeSessionId = activeSessionFinished ? null : rawActiveSessionId;
   const partnerInSession = usePartnerSessionPresence(
     activeSessionId,
     partnerUid,
