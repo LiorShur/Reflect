@@ -55,6 +55,12 @@ export interface ArchivedTurn {
 // label speakers by which partner role they had so the model can
 // attribute statements without us leaking real names. Sort by
 // archived_at so the conversation reads chronologically.
+//
+// When a speaker chose "let me say more" (confirmation_status: 'more')
+// after being mirrored, the next turn is a continuation from the same
+// speaker. Annotate that explicitly so Claude doesn't fold the
+// continuation into the earlier statement — this was the "summary
+// only shows the original, not the additional comments" pilot bug.
 export function formatTurnHistory(
   turns: ArchivedTurn[],
   partnerAUid: string,
@@ -70,7 +76,14 @@ export function formatTurnHistory(
   sorted.forEach((turn, i) => {
     const speakerLabel = labelFor(turn.speaker_uid, partnerAUid, partnerBUid);
     const listenerLabel = labelFor(turn.listener_uid, partnerAUid, partnerBUid);
-    lines.push(`Turn ${i + 1} (${speakerLabel} speaking):`);
+    const priorSameSpeaker =
+      i > 0 &&
+      sorted[i - 1].speaker_uid === turn.speaker_uid &&
+      sorted[i - 1].confirmation_status === 'more';
+    const header = priorSameSpeaker
+      ? `Turn ${i + 1} (${speakerLabel} continuing — chose "let me say more" after the previous turn):`
+      : `Turn ${i + 1} (${speakerLabel} speaking):`;
+    lines.push(header);
     if (turn.delivered_text) {
       lines.push(`  ${speakerLabel} said: ${turn.delivered_text}`);
     }

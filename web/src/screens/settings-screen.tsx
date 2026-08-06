@@ -13,14 +13,26 @@ import { Button } from '../components/button';
 import { TextField } from '../components/text-field';
 import { tryInitFirebase } from '../firebase';
 import { useAuthState } from '../hooks/use-auth-state';
+import { usePair } from '../hooks/use-pair';
+import { usePartnerProfile } from '../hooks/use-partner-profile';
 import styles from './settings-screen.module.css';
 
 export function SettingsScreen() {
   const auth = useAuthState();
+  const uid = auth.status === 'ready' && auth.user ? auth.user.uid : null;
+  const pair = usePair(uid);
+  const partnerUid = pair.ready ? pair.partnerUid : null;
+  const partnerProfile = usePartnerProfile(partnerUid);
+  const partnerName = partnerProfile.ready
+    ? partnerProfile.profile.displayName
+    : null;
+
   const [busy, setBusy] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [reauthPassword, setReauthPassword] = useState('');
   const [signOutBusy, setSignOutBusy] = useState(false);
+  const [unpairBusy, setUnpairBusy] = useState(false);
+  const [confirmingUnpair, setConfirmingUnpair] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const email = auth.status === 'ready' && auth.user ? auth.user.email : null;
@@ -36,6 +48,27 @@ export function SettingsScreen() {
       setError(friendlyError(err));
     } finally {
       setSignOutBusy(false);
+    }
+  };
+
+  const doUnpair = async () => {
+    setUnpairBusy(true);
+    setError(null);
+    try {
+      const fb = tryInitFirebase();
+      if (!fb) throw new Error('Firebase not configured.');
+      const fn = httpsCallable<Record<string, never>, { ok: true }>(
+        getFunctions(fb.app),
+        'unpair',
+      );
+      await fn({});
+      setConfirmingUnpair(false);
+      // The usePair listener flips to null automatically; Home routes
+      // to the "Pair up" state on next render.
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setUnpairBusy(false);
     }
   };
 
@@ -59,8 +92,11 @@ export function SettingsScreen() {
         'deleteUserData',
       );
       await fn({});
-      // onAuthStateChanged will fire with null; AuthGate flips us to
-      // /sign-in automatically.
+      // Server has already destroyed the Auth user, but the client's
+      // cached ID token won't know until it tries to refresh (up to
+      // an hour). Explicit signOut fires onAuthStateChanged(null)
+      // immediately so AuthGate flips us to /sign-in right away.
+      await signOut(fb.auth);
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -108,6 +144,46 @@ export function SettingsScreen() {
           See support resources
         </Link>
       </section>
+
+      {partnerUid ? (
+        <section className={styles.section}>
+          <h3 className={styles.heading}>Partner</h3>
+          <p className={styles.paragraph}>
+            You&apos;re paired with{' '}
+            <strong>{partnerName ?? 'your partner'}</strong>. Unpairing
+            disconnects both of you — you can then pair with someone else, or
+            the same person again with a new code.
+          </p>
+          {!confirmingUnpair ? (
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmingUnpair(true)}
+              disabled={unpairBusy}
+            >
+              Unpair from partner
+            </Button>
+          ) : (
+            <div className={styles.deleteBlock}>
+              <p className={styles.paragraph}>
+                Unpair from {partnerName ?? 'your partner'}? Any active session
+                gets ended for both of you.
+              </p>
+              <div className={styles.deleteActions}>
+                <Button variant="danger" onClick={doUnpair} busy={unpairBusy}>
+                  Unpair
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setConfirmingUnpair(false)}
+                  disabled={unpairBusy}
+                >
+                  Keep pairing
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className={styles.section}>
         <h3 className={styles.heading}>Account</h3>
